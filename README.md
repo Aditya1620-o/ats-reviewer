@@ -75,3 +75,17 @@ java -jar target/ats-reviewer-backend-0.0.1-SNAPSHOT.jar --server.port=8081
 ```
 
 The health endpoint will then be available at <http://localhost:8081/actuator/health>.
+
+## Connect to Supabase PostgreSQL
+
+1. In the Supabase dashboard, open **Project Settings > Database** and copy the **Session pooler** connection details. Use the session pooler for this long-running Spring Boot server.
+2. Set `SUPABASE_DB_URL` in the root `.env` file, using the pooler host and project-specific username shown by Supabase:
+
+	```dotenv
+	SUPABASE_DB_URL=jdbc:postgresql://<session-pooler-host>:5432/postgres?sslmode=require&user=postgres.<project-ref>&password=<url-encoded-password>
+	```
+
+	Replace the placeholders with your project's values. URL-encode the database password if it contains reserved URL characters. `.env` is ignored by Git; do not commit database credentials.
+3. Start the server using the command in [Start the server](#start-the-server). Spring Boot reads `.env` automatically.
+
+The connection uses JDBC. Tests use an in-memory H2 database and do not require Supabase credentials.
