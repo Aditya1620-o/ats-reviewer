@@ -102,3 +102,11 @@ Authentication endpoints:
 - `POST /v1/auth/logout` accepts `{ "refresh_token": "..." }` and revokes it; the response is `204 No Content`.
 
 Use the access token as `Authorization: Bearer <access-token>`. Other API routes require a valid access token. Refresh tokens are stored as SHA-256 hashes and are single-use; passwords are stored as BCrypt hashes. Google OAuth is not enabled yet.
+
+## Guest sessions
+
+- `POST /v1/guest-sessions` accepts `{ "captcha_token": "..." }`, creates a 24-hour guest session by default, and sets a signed, httpOnly `guest_session` cookie.
+- Set `TURNSTILE_SECRET` and keep `TURNSTILE_ENABLED=true` in production to verify Cloudflare Turnstile tokens.
+- Set `GUEST_TTL_HOURS`, `GUEST_COOKIE_SECURE`, and `IP_HASH_SALT` to override guest-session defaults.
+- `POST /v1/guest-sessions/claim` requires both a valid access token and the guest cookie. It moves the guest's resumes and job descriptions to the authenticated account.
+- Expired guest sessions are deleted hourly; database cascades remove their owned rows.

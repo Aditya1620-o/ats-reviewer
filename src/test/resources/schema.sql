@@ -1,4 +1,8 @@
+DROP TABLE IF EXISTS consent_records;
+DROP TABLE IF EXISTS job_descriptions;
+DROP TABLE IF EXISTS resumes;
 DROP TABLE IF EXISTS refresh_tokens;
+DROP TABLE IF EXISTS guest_sessions;
 DROP TABLE IF EXISTS users;
 
 CREATE TABLE users (
@@ -17,4 +21,41 @@ CREATE TABLE refresh_tokens (
     token_hash VARCHAR(64) NOT NULL UNIQUE,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     revoked_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE TABLE guest_sessions (
+    id UUID PRIMARY KEY,
+    ip_hash VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE TABLE resumes (
+    id UUID PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    guest_session_id UUID REFERENCES guest_sessions(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE TABLE job_descriptions (
+    id UUID PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    guest_session_id UUID REFERENCES guest_sessions(id) ON DELETE CASCADE,
+    is_template BOOLEAN NOT NULL DEFAULT FALSE,
+    title VARCHAR(255) NOT NULL,
+    raw_text VARCHAR(10000) NOT NULL,
+    published BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE TABLE consent_records (
+    id UUID PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+    guest_session_id UUID REFERENCES guest_sessions(id) ON DELETE SET NULL,
+    subject_hash VARCHAR(64) NOT NULL,
+    notice_version VARCHAR(255) NOT NULL,
+    age_confirmed_18 BOOLEAN NOT NULL,
+    given_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    withdrawn_at TIMESTAMP WITH TIME ZONE
 );
