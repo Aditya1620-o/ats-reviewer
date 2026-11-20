@@ -21,6 +21,7 @@ public class SecurityConfiguration {
 				.authorizeHttpRequests(authorize -> authorize
 						.requestMatchers("/v1/auth/**", "/actuator/health").permitAll()
 						.requestMatchers(HttpMethod.POST, "/v1/guest-sessions").permitAll()
+						.requestMatchers("/v1/consent").permitAll()
 						.anyRequest().authenticated())
 				.oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults()))
 				.build();

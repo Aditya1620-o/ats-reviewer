@@ -110,3 +110,11 @@ Use the access token as `Authorization: Bearer <access-token>`. Other API routes
 - Set `GUEST_TTL_HOURS`, `GUEST_COOKIE_SECURE`, and `IP_HASH_SALT` to override guest-session defaults.
 - `POST /v1/guest-sessions/claim` requires both a valid access token and the guest cookie. It moves the guest's resumes and job descriptions to the authenticated account.
 - Expired guest sessions are deleted hourly; database cascades remove their owned rows.
+
+## Consent
+
+- `POST /v1/consent` accepts `{ "age_confirmed_18": true }` for an authenticated account or a valid guest-session cookie.
+- `DELETE /v1/consent` withdraws consent and deletes the subject's resumes and job descriptions.
+- The active consent notice is configured with `NOTICE_VERSION`.
+- `CONSENT_SUBJECT_PEPPER` protects the content-free subject hash stored in consent and audit records.
+- Guest creation rejects `age_confirmed_18: false` and stores no guest data.

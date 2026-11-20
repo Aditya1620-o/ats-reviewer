@@ -37,6 +37,10 @@ public class GuestSessionController {
 			@RequestBody(required = false) CreateGuestSessionRequest request,
 			HttpServletRequest httpRequest) {
 		String captchaToken = request == null ? null : request.captchaToken();
+		if (request != null && Boolean.FALSE.equals(request.ageConfirmed18())) {
+			throw new GuestSessionException(HttpStatus.UNPROCESSABLE_ENTITY, "AGE_CONFIRMATION_REQUIRED",
+					"You must be at least 18 years old to use this service.");
+		}
 		String clientIp = resolveClientIp(httpRequest);
 		GuestSessionService.GuestRecord guest = guestSessionService.create(captchaToken, clientIp);
 

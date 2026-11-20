@@ -2,13 +2,25 @@ package com.atsreviewer.backend.guest;
 
 import tools.jackson.databind.PropertyNamingStrategies;
 import tools.jackson.databind.annotation.JsonNaming;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 public final class GuestDtos {
 	private GuestDtos() {
 	}
 
-	@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
-	public record CreateGuestSessionRequest(String captchaToken) {
+	public static final class CreateGuestSessionRequest {
+		@JsonProperty("captcha_token")
+		private String captchaToken;
+		@JsonProperty("age_confirmed_18")
+		private Boolean ageConfirmed18;
+
+		public String captchaToken() {
+			return captchaToken;
+		}
+
+		public Boolean ageConfirmed18() {
+			return ageConfirmed18;
+		}
 	}
 
 	@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
