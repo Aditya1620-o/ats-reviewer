@@ -1,0 +1,20 @@
+DROP TABLE IF EXISTS refresh_tokens;
+DROP TABLE IF EXISTS users;
+
+CREATE TABLE users (
+    id UUID PRIMARY KEY,
+    email VARCHAR(320) NOT NULL UNIQUE,
+    password_hash VARCHAR(100),
+    google_sub VARCHAR(255) UNIQUE,
+    role VARCHAR(32) NOT NULL DEFAULT 'user',
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    CHECK (password_hash IS NOT NULL OR google_sub IS NOT NULL)
+);
+
+CREATE TABLE refresh_tokens (
+    id UUID PRIMARY KEY DEFAULT RANDOM_UUID(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash VARCHAR(64) NOT NULL UNIQUE,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    revoked_at TIMESTAMP WITH TIME ZONE
+);

@@ -88,4 +88,17 @@ The health endpoint will then be available at <http://localhost:8081/actuator/he
 	Replace the placeholders with your project's values. URL-encode the database password if it contains reserved URL characters. `.env` is ignored by Git; do not commit database credentials.
 3. Start the server using the command in [Start the server](#start-the-server). Spring Boot reads `.env` automatically.
 
-The connection uses JDBC. Tests use an in-memory H2 database and do not require Supabase credentials.
+The connection uses JDBC. Flyway applies the PostgreSQL schema from `src/main/resources/db/migration` at startup. Tests use an in-memory H2 database and do not require Supabase credentials; PostgreSQL migrations are disabled for the H2 test profile.
+
+## Authentication
+
+Set `JWT_SECRET` in `.env` to a Base64-encoded random secret containing at least 32 bytes before starting the server. For example, generate one with `openssl rand -base64 32`. Access tokens last 15 minutes by default; refresh tokens last 14 days. Override these values with `ACCESS_TOKEN_TTL_MIN` and `REFRESH_TOKEN_TTL_DAYS`.
+
+Authentication endpoints:
+
+- `POST /v1/auth/signup` accepts `{ "email": "person@example.com", "password": "a-long-password" }` and returns access and refresh tokens.
+- `POST /v1/auth/login` accepts the same fields and returns a fresh token pair.
+- `POST /v1/auth/refresh` accepts `{ "refresh_token": "..." }`, revokes that refresh token, and returns a rotated pair.
+- `POST /v1/auth/logout` accepts `{ "refresh_token": "..." }` and revokes it; the response is `204 No Content`.
+
+Use the access token as `Authorization: Bearer <access-token>`. Other API routes require a valid access token. Refresh tokens are stored as SHA-256 hashes and are single-use; passwords are stored as BCrypt hashes. Google OAuth is not enabled yet.
