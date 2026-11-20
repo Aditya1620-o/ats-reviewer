@@ -60,6 +60,7 @@ Or from Git Bash, macOS, or Linux:
 ```
 
 Run the built JAR:
+7lttDb26zfutDYqR
 
 ```powershell
 java -jar target/ats-reviewer-backend-0.0.1-SNAPSHOT.jar
