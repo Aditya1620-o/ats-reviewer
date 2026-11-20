@@ -1,27 +1,27 @@
 package com.atsreviewer.backend.auth;
 
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.util.UUID;
-
-import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.MediaType;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.atsreviewer.backend.AtsReviewerBackendApplication;
+
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
 
 @SpringBootTest(classes = AtsReviewerBackendApplication.class)
 @AutoConfigureMockMvc
@@ -30,7 +30,7 @@ class AuthControllerTests {
 	private MockMvc mockMvc;
 
 	@Autowired
-	private ObjectMapper objectMapper;
+	private JsonMapper objectMapper;
 
 	@Autowired
 	private JwtDecoder jwtDecoder;
@@ -47,8 +47,8 @@ class AuthControllerTests {
 			.andExpect(jsonPath("$.token_type").value("Bearer"))
 			.andReturn());
 
-		String firstAccessToken = signup.path("access_token").asText();
-		String firstRefreshToken = signup.path("refresh_token").asText();
+		String firstAccessToken = signup.path("access_token").stringValue();
+		String firstRefreshToken = signup.path("refresh_token").stringValue();
 		assertNotNull(jwtDecoder.decode(firstAccessToken).getSubject());
 		assertEquals("user", jwtDecoder.decode(firstAccessToken).getClaimAsString("role"));
 
@@ -63,14 +63,14 @@ class AuthControllerTests {
 				.content(request(email.toUpperCase(), password)))
 			.andExpect(status().isOk())
 			.andReturn());
-		assertNotNull(jwtDecoder.decode(login.path("access_token").asText()).getSubject());
+		assertNotNull(jwtDecoder.decode(login.path("access_token").stringValue()).getSubject());
 
 		JsonNode refreshed = json(mockMvc.perform(post("/v1/auth/refresh")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(refreshRequest(firstRefreshToken)))
 			.andExpect(status().isOk())
 			.andReturn());
-		assertNotEquals(firstRefreshToken, refreshed.path("refresh_token").asText());
+		assertNotEquals(firstRefreshToken, refreshed.path("refresh_token").stringValue());
 
 		mockMvc.perform(post("/v1/auth/refresh")
 				.contentType(MediaType.APPLICATION_JSON)
@@ -97,7 +97,7 @@ class AuthControllerTests {
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.error.code").value("EMAIL_TAKEN"));
 
-		String refreshToken = tokens.path("refresh_token").asText();
+		String refreshToken = tokens.path("refresh_token").stringValue();
 		mockMvc.perform(post("/v1/auth/logout")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(refreshRequest(refreshToken)))

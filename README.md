@@ -1,10 +1,10 @@
 # ATS Reviewer Backend
 
-A Java 21+ Spring Boot server built with Maven. The Maven Wrapper is included, so a separate Maven installation is not required.
+A Java 25+ Spring Boot server built with Maven. The Maven Wrapper is included, so a separate Maven installation is not required.
 
 ## Prerequisites
 
-- JDK 21 or newer
+- JDK 25 or newer
 - Internet access on the first build so the Maven Wrapper can download Maven and project dependencies
 
 Check your Java version:
