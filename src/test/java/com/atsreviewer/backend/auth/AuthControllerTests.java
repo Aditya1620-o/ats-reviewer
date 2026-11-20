@@ -114,7 +114,9 @@ class AuthControllerTests {
 	}
 
 	private String refreshRequest(String refreshToken) throws Exception {
-		return objectMapper.writeValueAsString(new RefreshBody(refreshToken));
+		return objectMapper.createObjectNode()
+				.put("refresh_token", refreshToken)
+				.toString();
 	}
 
 	private JsonNode json(MvcResult result) throws Exception {
@@ -128,6 +130,4 @@ class AuthControllerTests {
 	private record Credentials(String email, String password) {
 	}
 
-	private record RefreshBody(String refreshToken) {
-	}
 }
