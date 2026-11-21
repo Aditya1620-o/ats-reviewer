@@ -1,0 +1,22 @@
+Candidate 01
+Email: candidate01@example.test
+
+Summary
+Backend engineer with experience building Java services and REST APIs.
+
+Experience
+Example Systems - Backend Engineer | 2023-Present
+- Built REST APIs with Java and Spring Boot for internal hiring workflows.
+- Tuned PostgreSQL queries and added integration tests with JUnit.
+- Packaged services with Docker and deployed them to AWS.
+
+Projects
+Resume Review Service
+- Implemented asynchronous document processing with Kafka.
+- Added API contract tests and CI checks.
+
+Skills
+Java, Spring Boot, REST, PostgreSQL, JUnit, Kafka, Docker, AWS, Git
+
+Education
+Bachelor of Science in Computer Science, Example University | 2023

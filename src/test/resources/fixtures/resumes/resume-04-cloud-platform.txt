@@ -1,0 +1,21 @@
+Candidate 04
+Email: candidate04@example.test
+
+Summary
+Platform engineer automating cloud infrastructure and delivery pipelines.
+
+Experience
+Example Hosting Group - Platform Engineer | 2021-Present
+- Managed Linux services and container workloads with Kubernetes.
+- Provisioned AWS infrastructure using Terraform.
+- Built CI/CD pipelines and Docker images for Java applications.
+
+Projects
+Deployment Health Checks
+- Added service health probes, alerting rules, and rollback automation.
+
+Skills
+Linux, Kubernetes, Docker, Terraform, AWS, CI/CD, Java, Bash, Git
+
+Education
+Bachelor of Science in Computer Engineering, Example University | 2021

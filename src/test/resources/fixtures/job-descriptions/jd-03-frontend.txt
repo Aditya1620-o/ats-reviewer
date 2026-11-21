@@ -1,0 +1,18 @@
+Frontend Software Engineer
+
+Responsibilities
+- Build accessible, responsive web experiences.
+- Develop reusable UI components and integrate backend APIs.
+- Maintain browser-based automated tests.
+
+Required Skills
+- TypeScript
+- React
+- HTML and CSS
+- Accessibility
+
+Preferred Skills
+- Node.js
+- Playwright
+- Performance profiling
+- CI/CD
