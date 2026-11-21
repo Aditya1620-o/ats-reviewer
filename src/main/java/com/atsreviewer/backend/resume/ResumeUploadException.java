@@ -12,6 +12,12 @@ public class ResumeUploadException extends RuntimeException {
 		this.code = code;
 	}
 
+	public ResumeUploadException(HttpStatus status, String code, String message, Throwable cause) {
+		super(message, cause);
+		this.status = status;
+		this.code = code;
+	}
+
 	public HttpStatus status() {
 		return status;
 	}

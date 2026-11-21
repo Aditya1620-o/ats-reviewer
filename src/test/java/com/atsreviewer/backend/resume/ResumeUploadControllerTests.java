@@ -11,13 +11,23 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.mockito.ArgumentCaptor;
 
 import com.atsreviewer.backend.guest.GuestSessionService;
 
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import tools.jackson.databind.json.JsonMapper;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -32,13 +42,16 @@ class ResumeUploadControllerTests {
 	@Autowired
 	private JsonMapper objectMapper;
 
+	@MockitoBean
+	private S3Client s3Client;
+
 	@Test
 	void uploadsValidPdfForGuestSession() throws Exception {
 		String guestCookie = createGuestCookie();
 		MockMultipartFile file = new MockMultipartFile(
 				"file", "resume.pdf", MediaType.APPLICATION_PDF_VALUE, validPdf());
 
-		mockMvc.perform(multipart("/v1/resumes")
+		MvcResult result = mockMvc.perform(multipart("/v1/resumes")
 				.file(file)
 				.cookie(new jakarta.servlet.http.Cookie(GuestSessionService.COOKIE_NAME, guestCookie)))
 			.andExpect(status().isCreated())
@@ -46,7 +59,15 @@ class ResumeUploadControllerTests {
 			.andExpect(jsonPath("$.version_id").isNotEmpty())
 			.andExpect(jsonPath("$.filename").value("resume.pdf"))
 			.andExpect(jsonPath("$.mime_type").value(MediaType.APPLICATION_PDF_VALUE))
-			.andExpect(jsonPath("$.size_bytes").isNumber());
+			.andExpect(jsonPath("$.size_bytes").isNumber())
+			.andReturn();
+		var response = objectMapper.readTree(result.getResponse().getContentAsString());
+		ArgumentCaptor<PutObjectRequest> requestCaptor = ArgumentCaptor.forClass(PutObjectRequest.class);
+		verify(s3Client).putObject((PutObjectRequest) requestCaptor.capture(), any(RequestBody.class));
+		assertEquals("ats-reviewer-test-resumes", requestCaptor.getValue().bucket());
+		assertEquals(response.path("resume_id").stringValue() + "/"
+				+ response.path("version_id").stringValue() + ".pdf", requestCaptor.getValue().key());
+		assertEquals(MediaType.APPLICATION_PDF_VALUE, requestCaptor.getValue().contentType());
 	}
 
 	@Test
@@ -113,6 +134,20 @@ class ResumeUploadControllerTests {
 						"file", "resume.pdf", MediaType.APPLICATION_PDF_VALUE, validPdf())))
 			.andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.error.code").value("OWNER_REQUIRED"));
+	}
+
+	@Test
+	void reportsStorageUnavailableWhenS3WriteFails() throws Exception {
+		doThrow(SdkClientException.create("storage unavailable"))
+				.when(s3Client)
+				.putObject((PutObjectRequest) any(), any(RequestBody.class));
+
+		mockMvc.perform(multipart("/v1/resumes")
+				.file(new MockMultipartFile(
+						"file", "resume.pdf", MediaType.APPLICATION_PDF_VALUE, validPdf()))
+				.cookie(new jakarta.servlet.http.Cookie(GuestSessionService.COOKIE_NAME, createGuestCookie())))
+			.andExpect(status().isServiceUnavailable())
+			.andExpect(jsonPath("$.error.code").value("FILE_STORAGE_UNAVAILABLE"));
 	}
 
 	@Test
