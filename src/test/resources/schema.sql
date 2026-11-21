@@ -61,9 +61,10 @@ CREATE TABLE job_descriptions (
     guest_session_id UUID REFERENCES guest_sessions(id) ON DELETE CASCADE,
     is_template BOOLEAN NOT NULL DEFAULT FALSE,
     title VARCHAR(255) NOT NULL,
-    raw_text VARCHAR(10000) NOT NULL,
+    raw_text VARCHAR(10000) NOT NULL CHECK (LENGTH(raw_text) BETWEEN 200 AND 10000),
     published BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    CHECK (is_template OR ((user_id IS NULL) <> (guest_session_id IS NULL)))
 );
 
 CREATE TABLE consent_records (

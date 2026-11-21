@@ -118,6 +118,13 @@ Use the access token as `Authorization: Bearer <access-token>`. Other API routes
 - Files are stored locally under `./uploads` by default. Set `UPLOAD_DIRECTORY` to change the storage directory; production deployments should mount a persistent, access-controlled directory.
 - The server checks the filename, media type, file signature, and whether the document can be parsed before storing it.
 
+## Job descriptions
+
+- `POST /v1/job-descriptions` accepts `{ "title": "...", "raw_text": "..." }` for an authenticated account or guest session.
+- Job description text must contain 200–10,000 characters.
+- `GET /v1/job-descriptions` lists the current owner's job descriptions; `GET /v1/job-descriptions/{id}` retrieves one.
+- `DELETE /v1/job-descriptions/{id}` deletes a job description owned by the current account or guest session.
+
 ## Consent
 
 - `POST /v1/consent` accepts `{ "age_confirmed_18": true }` for an authenticated account or a valid guest-session cookie.
