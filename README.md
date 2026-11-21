@@ -125,6 +125,14 @@ Use the access token as `Authorization: Bearer <access-token>`. Other API routes
 - `GET /v1/job-descriptions` lists the current owner's job descriptions; `GET /v1/job-descriptions/{id}` retrieves one.
 - `DELETE /v1/job-descriptions/{id}` deletes a job description owned by the current account or guest session.
 
+## Analyses
+
+- `POST /v1/analyses` accepts `{ "resume_version_id": "...", "job_description_id": "..." }` and returns `202 Accepted` with a queued analysis.
+- The resume version and job description must belong to the same authenticated account or guest session.
+- Repeating a request for the same resume version, job description, and engine version returns the existing analysis.
+- `GET /v1/analyses/{id}` returns the current status and, when available, the score and skill breakdown.
+- Background processing is not included in this API yet; a queued analysis remains queued until the analysis worker is connected.
+
 ## Consent
 
 - `POST /v1/consent` accepts `{ "age_confirmed_18": true }` for an authenticated account or a valid guest-session cookie.

@@ -23,6 +23,7 @@ public class SecurityConfiguration {
 						.requestMatchers(HttpMethod.POST, "/v1/guest-sessions", "/v1/resumes").permitAll()
 						.requestMatchers("/v1/consent").permitAll()
 						.requestMatchers("/v1/job-descriptions", "/v1/job-descriptions/**").permitAll()
+						.requestMatchers("/v1/analyses", "/v1/analyses/**").permitAll()
 						.anyRequest().authenticated())
 				.oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults()))
 				.build();
