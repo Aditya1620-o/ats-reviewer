@@ -111,6 +111,13 @@ Use the access token as `Authorization: Bearer <access-token>`. Other API routes
 - `POST /v1/guest-sessions/claim` requires both a valid access token and the guest cookie. It moves the guest's resumes and job descriptions to the authenticated account.
 - Expired guest sessions are deleted hourly; database cascades remove their owned rows.
 
+## Resume uploads
+
+- `POST /v1/resumes` accepts `multipart/form-data` with a `file` field and a PDF or DOCX resume, up to 5 MB.
+- Uploads require either a valid access token or a valid `guest_session` cookie. The response includes the resume and version IDs.
+- Files are stored locally under `./uploads` by default. Set `UPLOAD_DIRECTORY` to change the storage directory; production deployments should mount a persistent, access-controlled directory.
+- The server checks the filename, media type, file signature, and whether the document can be parsed before storing it.
+
 ## Consent
 
 - `POST /v1/consent` accepts `{ "age_confirmed_18": true }` for an authenticated account or a valid guest-session cookie.

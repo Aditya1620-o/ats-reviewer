@@ -1,5 +1,6 @@
 DROP TABLE IF EXISTS consent_records;
 DROP TABLE IF EXISTS job_descriptions;
+DROP TABLE IF EXISTS resume_versions;
 DROP TABLE IF EXISTS resumes;
 DROP TABLE IF EXISTS refresh_tokens;
 DROP TABLE IF EXISTS guest_sessions;
@@ -36,6 +37,22 @@ CREATE TABLE resumes (
     guest_session_id UUID REFERENCES guest_sessions(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+CREATE TABLE resume_versions (
+    id UUID PRIMARY KEY,
+    resume_id UUID NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
+    version_no INTEGER NOT NULL,
+    s3_key VARCHAR(1024) NOT NULL,
+    sha256 VARCHAR(64) NOT NULL,
+    mime VARCHAR(255) NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    extracted_text CLOB,
+    sections JSON,
+    parse_warnings JSON DEFAULT '[]',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (resume_id, version_no),
+    UNIQUE (resume_id, sha256)
 );
 
 CREATE TABLE job_descriptions (
