@@ -1,5 +1,7 @@
 DROP TABLE IF EXISTS consent_records;
 DROP TABLE IF EXISTS job_descriptions;
+DROP TABLE IF EXISTS skill_aliases;
+DROP TABLE IF EXISTS skills;
 DROP TABLE IF EXISTS resume_versions;
 DROP TABLE IF EXISTS resumes;
 DROP TABLE IF EXISTS refresh_tokens;
@@ -55,6 +57,25 @@ CREATE TABLE resume_versions (
     UNIQUE (resume_id, sha256)
 );
 
+CREATE TABLE skills (
+    id INTEGER PRIMARY KEY,
+    canonical_name VARCHAR(255) NOT NULL UNIQUE,
+    category VARCHAR(100) NOT NULL
+);
+
+CREATE TABLE skill_aliases (
+    alias VARCHAR(255) PRIMARY KEY,
+    skill_id INTEGER NOT NULL REFERENCES skills(id) ON DELETE CASCADE
+);
+
+INSERT INTO skills (id, canonical_name, category) VALUES
+    (1, 'Java', 'programming_language'),
+    (2, 'Python', 'programming_language');
+
+INSERT INTO skill_aliases (alias, skill_id) VALUES
+    ('java', 1),
+    ('python', 2);
+
 CREATE TABLE job_descriptions (
     id UUID PRIMARY KEY,
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
@@ -62,8 +83,11 @@ CREATE TABLE job_descriptions (
     is_template BOOLEAN NOT NULL DEFAULT FALSE,
     title VARCHAR(255) NOT NULL,
     raw_text VARCHAR(10000) NOT NULL,
+    required_skill_ids INTEGER ARRAY NOT NULL DEFAULT ARRAY[],
+    preferred_skill_ids INTEGER ARRAY NOT NULL DEFAULT ARRAY[],
     published BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    CHECK ((user_id IS NULL) <> (guest_session_id IS NULL))
 );
 
 CREATE TABLE consent_records (

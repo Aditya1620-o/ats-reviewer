@@ -16,7 +16,12 @@ public final class SkillMatcher {
         java.util.Map<String, Integer> normalizedAliases = new java.util.HashMap<>();
         aliases.forEach((alias, skillId) -> {
             if (alias != null && skillId != null) {
-                normalizedAliases.put(normalizeAlias(alias), skillId);
+                String normalizedAlias = normalizeAlias(alias);
+                Integer existingSkillId = normalizedAliases.putIfAbsent(normalizedAlias, skillId);
+                if (existingSkillId != null && !existingSkillId.equals(skillId)) {
+                    throw new IllegalArgumentException(
+                            "Alias maps to multiple skill IDs after normalization: " + alias);
+                }
             }
         });
         this.aliases = Map.copyOf(normalizedAliases);

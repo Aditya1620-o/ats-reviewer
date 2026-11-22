@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SkillMatcherTest {
     @Test
@@ -35,5 +36,14 @@ class SkillMatcherTest {
         SkillMatcher matcher = new SkillMatcher(Map.of("java", 1));
 
         assertThat(matcher.findSkillIds("  ")).isEmpty();
+    }
+
+    @Test
+    void rejectsNormalizedAliasesThatPointToDifferentSkills() {
+        assertThatThrownBy(() -> new SkillMatcher(Map.of(
+                "node.js", 1,
+                "nodejs", 2)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Alias maps to multiple skill IDs after normalization:");
     }
 }

@@ -118,6 +118,15 @@ Use the access token as `Authorization: Bearer <access-token>`. Other API routes
 - Files are stored locally under `./uploads` by default. Set `UPLOAD_DIRECTORY` to change the storage directory; production deployments should mount a persistent, access-controlled directory.
 - The server checks the filename, media type, file signature, and whether the document can be parsed before storing it.
 
+## Job descriptions
+
+- `POST /v1/job-descriptions` saves a job description with a title and text of 200–10,000 characters, classifies known skills as required or preferred, and returns their skill IDs.
+- `GET /v1/job-descriptions` lists the signed-in user's or guest session's saved job descriptions.
+- `GET /v1/job-descriptions/{id}` returns one description owned by the current user or guest session.
+- `DELETE /v1/job-descriptions/{id}` deletes one description owned by the current user or guest session and returns `204 No Content`.
+- These endpoints require either a valid access token or a valid `guest_session` cookie. A request cannot read or delete another owner's description.
+- The `skills` and `skill_aliases` tables must contain the skill catalogue; creation returns `503` if the catalogue is empty.
+
 ## Consent
 
 - `POST /v1/consent` accepts `{ "age_confirmed_18": true }` for an authenticated account or a valid guest-session cookie.
