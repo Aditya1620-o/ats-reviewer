@@ -27,4 +27,4 @@ Spend one day together before splitting up; every item below is a file in the re
 3. **API contract** — springdoc OpenAPI for `POST /v1/analyses` and `GET /v1/analyses/{id}`, with the JSON breakdown shape. Dev B builds the results UI against a mock of it.
 4. **Error codes** — the error table from the low-level design, as one Java enum both use.
 5. **Fixtures folder** — `src/test/resources/fixtures/` with 5 base résumés (synthetic) and 3 JDs, used by both tracks.
-6. **Repo setup** — Gradle build, ArchUnit rule (engine never imports Spring), GitHub Actions running all tests on every PR, `docker-compose.yml` for local Postgres, Valkey and MinIO.
+6. **Repo setup** — Gradle build, ArchUnit rule (engine never imports Spring), GitHub Actions running all tests on every PR, and `docker-compose.yml` for local Postgres and Valkey. Configure ImageKit through environment variables.

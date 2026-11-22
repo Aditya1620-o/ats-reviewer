@@ -12,18 +12,24 @@ import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
+
+import com.atsreviewer.backend.resume.ResumeFileDeletionService;
 
 @Service
 public class ConsentService {
 	private final JdbcClient jdbcClient;
+	private final ResumeFileDeletionService resumeFileDeletionService;
 	private final String noticeVersion;
 	private final String subjectPepper;
 
 	public ConsentService(
 			JdbcClient jdbcClient,
+			ResumeFileDeletionService resumeFileDeletionService,
 			@Value("${app.consent.notice-version}") String noticeVersion,
 			@Value("${app.consent.subject-pepper:}") String subjectPepper) {
 		this.jdbcClient = jdbcClient;
+		this.resumeFileDeletionService = resumeFileDeletionService;
 		this.noticeVersion = noticeVersion;
 		this.subjectPepper = subjectPepper;
 	}
@@ -87,6 +93,7 @@ public class ConsentService {
 		}
 		Instant now = Instant.now();
 		if (guestSessionId != null) {
+			deleteStoredResumes(null, guestSessionId);
 			jdbcClient.sql("""
 					UPDATE consent_records
 					SET withdrawn_at = :now, guest_session_id = NULL
@@ -107,6 +114,7 @@ public class ConsentService {
 			return;
 		}
 
+		deleteStoredResumes(userId, null);
 		jdbcClient.sql("""
 				UPDATE consent_records
 				SET withdrawn_at = :now, user_id = NULL
@@ -134,6 +142,19 @@ public class ConsentService {
 			return HexFormat.of().formatHex(digest);
 		} catch (java.security.NoSuchAlgorithmException exception) {
 			throw new IllegalStateException("SHA-256 is unavailable.", exception);
+		}
+	}
+
+	private void deleteStoredResumes(UUID userId, UUID guestSessionId) {
+		try {
+			if (userId != null) {
+				resumeFileDeletionService.deleteForUser(userId);
+			} else {
+				resumeFileDeletionService.deleteForGuest(guestSessionId);
+			}
+		} catch (RestClientException exception) {
+			throw new ConsentException(HttpStatus.SERVICE_UNAVAILABLE, "FILE_STORAGE_UNAVAILABLE",
+					"Resume files could not be deleted. Please try again.", exception);
 		}
 	}
 }

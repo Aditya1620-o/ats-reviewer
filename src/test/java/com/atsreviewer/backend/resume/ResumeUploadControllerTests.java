@@ -7,17 +7,24 @@ import java.util.UUID;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.web.client.RestClientException;
 
 import com.atsreviewer.backend.guest.GuestSessionService;
 
 import tools.jackson.databind.json.JsonMapper;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -31,6 +38,14 @@ class ResumeUploadControllerTests {
 
 	@Autowired
 	private JsonMapper objectMapper;
+
+	@MockitoBean
+	private ResumeFileStorage fileStorage;
+
+	@BeforeEach
+	void configureImageKitStorage() {
+		when(fileStorage.store(anyString(), any(byte[].class), anyString())).thenReturn("imagekit-file-id");
+	}
 
 	@Test
 	void uploadsValidPdfForGuestSession() throws Exception {
@@ -113,6 +128,20 @@ class ResumeUploadControllerTests {
 						"file", "resume.pdf", MediaType.APPLICATION_PDF_VALUE, validPdf())))
 			.andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.error.code").value("OWNER_REQUIRED"));
+	}
+
+	@Test
+	void reportsStorageUnavailableWhenImageKitWriteFails() throws Exception {
+		doThrow(new RestClientException("storage unavailable"))
+				.when(fileStorage)
+				.store(anyString(), any(byte[].class), anyString());
+
+		mockMvc.perform(multipart("/v1/resumes")
+				.file(new MockMultipartFile(
+						"file", "resume.pdf", MediaType.APPLICATION_PDF_VALUE, validPdf()))
+				.cookie(new jakarta.servlet.http.Cookie(GuestSessionService.COOKIE_NAME, createGuestCookie())))
+			.andExpect(status().isServiceUnavailable())
+			.andExpect(jsonPath("$.error.code").value("FILE_STORAGE_UNAVAILABLE"));
 	}
 
 	@Test
