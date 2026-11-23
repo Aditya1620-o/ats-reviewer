@@ -72,11 +72,16 @@ CREATE TABLE skill_aliases (
 
 INSERT INTO skills (id, canonical_name, category) VALUES
     (1, 'Java', 'programming_language'),
-    (2, 'Python', 'programming_language');
+    (2, 'Python', 'programming_language'),
+    (3, 'AWS', 'cloud'),
+    (4, 'Docker', 'devops_tool');
 
 INSERT INTO skill_aliases (alias, skill_id) VALUES
     ('java', 1),
-    ('python', 2);
+    ('python', 2),
+    ('Python 3', 2),
+    ('Amazon Web Services', 3),
+    ('Docker Engine', 4);
 
 CREATE TABLE job_descriptions (
     id UUID PRIMARY KEY,
