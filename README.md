@@ -127,6 +127,14 @@ Use the access token as `Authorization: Bearer <access-token>`. Other API routes
 - These endpoints require either a valid access token or a valid `guest_session` cookie. A request cannot read or delete another owner's description.
 - The `skills` and `skill_aliases` tables must contain the skill catalogue; creation returns `503` if the catalogue is empty.
 
+## Analyses
+
+- `POST /v1/analyses` accepts `{ "resume_version_id": "...", "job_description_id": "..." }` and returns `202 Accepted` with a queued analysis.
+- The resume version and job description must belong to the same authenticated account or guest session.
+- Repeating a request for the same resume version, job description, and engine version returns the existing analysis.
+- `GET /v1/analyses/{id}` returns the current status and, when available, the score and skill breakdown.
+- Background processing is not included in this API yet; a queued analysis remains queued until the analysis worker is connected.
+
 ## Consent
 
 - `POST /v1/consent` accepts `{ "age_confirmed_18": true }` for an authenticated account or a valid guest-session cookie.
