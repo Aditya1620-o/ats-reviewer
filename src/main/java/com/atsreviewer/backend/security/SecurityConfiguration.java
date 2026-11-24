@@ -27,6 +27,7 @@ public class SecurityConfiguration {
 						.requestMatchers(HttpMethod.DELETE, "/v1/job-descriptions/**").permitAll()
 						.requestMatchers("/v1/consent").permitAll()
 						.requestMatchers("/v1/analyses", "/v1/analyses/**").permitAll()
+						.requestMatchers("/v1/shared-reports/**").permitAll()
 						.anyRequest().authenticated())
 				.oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults()))
 				.build();

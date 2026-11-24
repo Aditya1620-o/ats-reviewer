@@ -25,6 +25,7 @@ import tools.jackson.databind.json.JsonMapper;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -153,6 +154,121 @@ class AnalysisControllerTests {
 		UUID retryId = createAnalysis(owner);
 
 		assertEquals(firstId, retryId);
+	}
+
+	@Test
+	void onlyOwnersCanCreateAndRevokeCompletedSharedReports() throws Exception {
+		Fixture owner = createFixture();
+		Fixture otherOwner = createFixture();
+		UUID analysisId = createAnalysis(owner);
+
+		mockMvc.perform(post("/v1/analyses/{id}/share", analysisId))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.error.code").value("OWNER_REQUIRED"));
+		mockMvc.perform(withOwner(post("/v1/analyses/{id}/share", analysisId), otherOwner))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.error.code").value("ANALYSIS_NOT_FOUND"));
+		mockMvc.perform(withOwner(post("/v1/analyses/{id}/share", analysisId), owner))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.error.code").value("ANALYSIS_NOT_COMPLETE"));
+
+		jdbcClient.sql("""
+				UPDATE analyses
+				SET status = 'done', score = 82.50, finished_at = :finishedAt
+				WHERE id = :id
+				""")
+			.param("finishedAt", Timestamp.from(Instant.now()))
+			.param("id", analysisId)
+			.update();
+		int javaSkillId = jdbcClient.sql("SELECT id FROM skills WHERE canonical_name = 'Java'")
+				.query((resultSet, rowNumber) -> resultSet.getInt(1))
+				.single();
+		jdbcClient.sql("""
+				INSERT INTO analysis_items (analysis_id, skill_id, weight, status, found_in, points)
+				VALUES (:analysisId, :skillId, 3.0, 'used', 'EXPERIENCE', 3.0)
+				""")
+			.param("analysisId", analysisId)
+			.param("skillId", javaSkillId)
+			.update();
+
+		MvcResult shareResult = mockMvc.perform(withOwner(post("/v1/analyses/{id}/share", analysisId), owner))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.token").isString())
+			.andExpect(jsonPath("$.expires_at").isNotEmpty())
+			.andReturn();
+		String token = objectMapper.readTree(shareResult.getResponse().getContentAsString())
+				.path("token")
+				.stringValue();
+		assertEquals(22, token.length());
+		org.junit.jupiter.api.Assertions.assertTrue(token.matches("[A-Za-z0-9_-]{22}"));
+
+		mockMvc.perform(get("/v1/shared-reports/{token}", token))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.analysis.id").value(analysisId.toString()))
+			.andExpect(jsonPath("$.analysis.status").value("done"))
+			.andExpect(jsonPath("$.analysis.score").value(82.5))
+			.andExpect(jsonPath("$.analysis.items[0].skill_name").value("Java"));
+
+		mockMvc.perform(withOwner(delete("/v1/shared-reports/{token}", token), otherOwner))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.error.code").value("SHARED_REPORT_NOT_FOUND"));
+
+		mockMvc.perform(withOwner(delete("/v1/shared-reports/{token}", token), owner))
+			.andExpect(status().isNoContent());
+		mockMvc.perform(get("/v1/shared-reports/{token}", token))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.error.code").value("SHARED_REPORT_NOT_FOUND"));
+	}
+
+	@Test
+	void expiredSharedReportCannotBeViewed() throws Exception {
+		Fixture owner = createFixture();
+		UUID analysisId = createAnalysis(owner);
+		jdbcClient.sql("""
+				UPDATE analyses
+				SET status = 'done', score = 50, finished_at = :finishedAt
+				WHERE id = :id
+				""")
+			.param("finishedAt", Timestamp.from(Instant.now()))
+			.param("id", analysisId)
+			.update();
+		MvcResult shareResult = mockMvc.perform(withOwner(post("/v1/analyses/{id}/share", analysisId), owner))
+			.andExpect(status().isCreated())
+			.andReturn();
+		String token = objectMapper.readTree(shareResult.getResponse().getContentAsString())
+				.path("token")
+				.stringValue();
+		jdbcClient.sql("""
+				UPDATE shared_reports
+				SET expires_at = :expiredAt
+				WHERE token = :token
+				""")
+			.param("expiredAt", Timestamp.from(Instant.now().minusSeconds(1)))
+			.param("token", token)
+			.update();
+
+		mockMvc.perform(get("/v1/shared-reports/{token}", token))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.error.code").value("SHARED_REPORT_NOT_FOUND"));
+	}
+
+	@Test
+	void authenticatedUserCanShareACompletedAnalysis() throws Exception {
+		Fixture owner = createAuthenticatedFixture();
+		UUID analysisId = createAnalysis(owner);
+		jdbcClient.sql("""
+				UPDATE analyses
+				SET status = 'done', score = 75, finished_at = :finishedAt
+				WHERE id = :id
+				""")
+			.param("finishedAt", Timestamp.from(Instant.now()))
+			.param("id", analysisId)
+			.update();
+
+		mockMvc.perform(withOwner(post("/v1/analyses/{id}/share", analysisId), owner))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.token").isString())
+			.andExpect(jsonPath("$.expires_at").isNotEmpty());
 	}
 
 	private UUID createAnalysis(Fixture owner) throws Exception {

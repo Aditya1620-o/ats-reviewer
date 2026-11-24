@@ -1,4 +1,5 @@
 DROP TABLE IF EXISTS consent_records;
+DROP TABLE IF EXISTS shared_reports;
 DROP TABLE IF EXISTS analysis_items;
 DROP TABLE IF EXISTS analyses;
 DROP TABLE IF EXISTS job_descriptions;
@@ -117,6 +118,13 @@ CREATE TABLE analysis_items (
     found_in VARCHAR(255),
     points DECIMAL(4, 2) NOT NULL,
     UNIQUE (analysis_id, skill_id)
+);
+
+CREATE TABLE shared_reports (
+    token VARCHAR(22) PRIMARY KEY,
+    analysis_id UUID NOT NULL REFERENCES analyses(id) ON DELETE CASCADE,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    revoked_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE TABLE consent_records (

@@ -135,6 +135,14 @@ Use the access token as `Authorization: Bearer <access-token>`. Other API routes
 - `GET /v1/analyses/{id}` returns the current status and, when available, the score and skill breakdown.
 - A scheduled worker claims queued analyses, parses the resume, scores it against the job description, and saves the result. Failed analyses retry up to three attempts.
 
+## Shared reports
+
+- `POST /v1/analyses/{id}/share` creates a public link for an owned completed analysis. Sign in or provide a valid `guest_session` cookie.
+- `GET /v1/shared-reports/{token}` returns the score and skill breakdown without authentication.
+- `DELETE /v1/shared-reports/{token}` revokes a link and requires the owner account or guest session.
+- Shared report tokens are random 22-character URL-safe values and expire after seven days by default. Override the lifetime with `SHARED_REPORT_TTL`.
+- Expired, revoked, unknown, and incomplete reports cannot be viewed.
+
 ## Rate limits
 
 Set `VALKEY_URL` to a Valkey/Redis-compatible URL. Shared token buckets enforce 10 analyses per hour per signed-in user, 3 per hour per guest session, 20 per day per guest IP, 20 resume uploads per day per owner, and 5 login attempts per 15 minutes per IP and email. Rate-limited responses return `429` with a `Retry-After` header. If Valkey is unavailable, login fails closed with `503`; other rate-limited actions log the outage and proceed.
