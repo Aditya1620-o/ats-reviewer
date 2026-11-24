@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 @Service
@@ -38,5 +39,13 @@ public class S3ResumeFileStorage {
 				.bucket(bucket)
 				.key(key)
 				.build());
+	}
+
+	public byte[] read(String key) {
+		return s3Client.getObjectAsBytes(GetObjectRequest.builder()
+				.bucket(bucket)
+				.key(key)
+				.build())
+				.asByteArray();
 	}
 }
