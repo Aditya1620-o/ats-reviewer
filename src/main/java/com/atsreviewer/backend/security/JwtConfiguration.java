@@ -8,6 +8,7 @@ import javax.crypto.spec.SecretKeySpec;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
@@ -50,6 +51,7 @@ public class JwtConfiguration {
 	}
 
 	@Bean
+	@Primary
 	JwtDecoder jwtDecoder(SecretKey jwtSecretKey) {
 		NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(jwtSecretKey)
 				.macAlgorithm(MacAlgorithm.HS256)

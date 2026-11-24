@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.atsreviewer.backend.auth.AuthDtos.LoginRequest;
 import com.atsreviewer.backend.auth.AuthDtos.SignupRequest;
 import com.atsreviewer.backend.auth.AuthDtos.TokenResponse;
+import com.atsreviewer.backend.auth.GoogleIdTokenVerifier.GoogleIdentity;
 
 @Service
 public class AuthService {
@@ -97,6 +98,43 @@ public class AuthService {
 			throw new AuthException(HttpStatus.UNAUTHORIZED, "UNAUTHENTICATED", INVALID_CREDENTIALS);
 		}
 		return issueTokens(account.get().id(), account.get().role());
+	}
+
+	@Transactional
+	public TokenResponse googleSignIn(GoogleIdentity identity) {
+		String email = normalizeEmail(identity.email());
+		Optional<GoogleAccount> linkedAccount = findByGoogleSubject(identity.subject());
+		if (linkedAccount.isPresent()) {
+			return issueTokens(linkedAccount.get().id(), linkedAccount.get().role());
+		}
+
+		Optional<GoogleAccount> emailAccount = findByEmail(email);
+		if (emailAccount.isPresent()) {
+			return linkGoogleIdentity(emailAccount.get(), identity.subject());
+		}
+
+		UUID userId = UUID.randomUUID();
+		jdbcClient.sql("""
+				INSERT INTO users (id, email, google_sub, role, created_at)
+				VALUES (:id, :email, :googleSub, 'user', :createdAt)
+				ON CONFLICT DO NOTHING
+				""")
+			.param("id", userId)
+			.param("email", email)
+			.param("googleSub", identity.subject())
+			.param("createdAt", Timestamp.from(Instant.now()))
+			.update();
+
+		linkedAccount = findByGoogleSubject(identity.subject());
+		if (linkedAccount.isPresent()) {
+			return issueTokens(linkedAccount.get().id(), linkedAccount.get().role());
+		}
+
+		emailAccount = findByEmail(email);
+		if (emailAccount.isPresent() && emailAccount.get().googleSubject() == null) {
+			return linkGoogleIdentity(emailAccount.get(), identity.subject());
+		}
+		throw googleAccountConflict();
 	}
 
 	@Transactional
@@ -182,6 +220,67 @@ public class AuthService {
 				refreshToken, refreshTokenTtl.toSeconds());
 	}
 
+	private Optional<GoogleAccount> findByGoogleSubject(String subject) {
+		return jdbcClient.sql("""
+				SELECT id, role, google_sub
+				FROM users
+				WHERE google_sub = :googleSub
+				FOR UPDATE
+				""")
+			.param("googleSub", subject)
+			.query((resultSet, rowNumber) -> new GoogleAccount(
+					resultSet.getObject("id", UUID.class),
+					resultSet.getString("role"),
+					resultSet.getString("google_sub")))
+			.optional();
+	}
+
+	private Optional<GoogleAccount> findByEmail(String email) {
+		return jdbcClient.sql("""
+				SELECT id, role, google_sub
+				FROM users
+				WHERE email = :email
+				FOR UPDATE
+				""")
+			.param("email", email)
+			.query((resultSet, rowNumber) -> new GoogleAccount(
+					resultSet.getObject("id", UUID.class),
+					resultSet.getString("role"),
+					resultSet.getString("google_sub")))
+			.optional();
+	}
+
+	private TokenResponse linkGoogleIdentity(GoogleAccount account, String subject) {
+		if (account.googleSubject() != null) {
+			if (account.googleSubject().equals(subject)) {
+				return issueTokens(account.id(), account.role());
+			}
+			throw googleAccountConflict();
+		}
+
+		try {
+			int linked = jdbcClient.sql("""
+					UPDATE users
+					SET google_sub = :googleSub
+					WHERE id = :id AND google_sub IS NULL
+					""")
+				.param("googleSub", subject)
+				.param("id", account.id())
+				.update();
+			if (linked == 1) {
+				return issueTokens(account.id(), account.role());
+			}
+		} catch (DuplicateKeyException exception) {
+			throw googleAccountConflict();
+		}
+
+		Optional<GoogleAccount> linkedAccount = findByGoogleSubject(subject);
+		if (linkedAccount.isPresent()) {
+			return issueTokens(linkedAccount.get().id(), linkedAccount.get().role());
+		}
+		throw googleAccountConflict();
+	}
+
 	private static String normalizeEmail(String email) {
 		return email.trim().toLowerCase(Locale.ROOT);
 	}
@@ -208,6 +307,14 @@ public class AuthService {
 				"The refresh token is invalid, expired, or has already been used.");
 	}
 
+	private static AuthException googleAccountConflict() {
+		return new AuthException(HttpStatus.CONFLICT, "GOOGLE_ACCOUNT_LINK_CONFLICT",
+				"This Google account cannot be linked to the requested email address.");
+	}
+
 	private record UserAccount(UUID id, String passwordHash, String role) {
+	}
+
+	private record GoogleAccount(UUID id, String role, String googleSubject) {
 	}
 }
