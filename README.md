@@ -133,7 +133,7 @@ Use the access token as `Authorization: Bearer <access-token>`. Other API routes
 - The resume version and job description must belong to the same authenticated account or guest session.
 - Repeating a request for the same resume version, job description, and engine version returns the existing analysis.
 - `GET /v1/analyses/{id}` returns the current status and, when available, the score and skill breakdown.
-- Background processing is not included in this API yet; a queued analysis remains queued until the analysis worker is connected.
+- A scheduled worker claims queued analyses, parses the resume, scores it against the job description, and saves the result. Failed analyses retry up to three attempts.
 
 ## Rate limits
 

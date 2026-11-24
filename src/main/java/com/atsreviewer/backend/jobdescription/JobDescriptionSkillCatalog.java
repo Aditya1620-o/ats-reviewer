@@ -21,6 +21,15 @@ public class JobDescriptionSkillCatalog {
 	}
 
 	public List<JdSkill> classify(String jobDescription) {
+		CatalogData catalog = loadCatalog();
+		return new JdClassifier(new SkillMatcher(catalog.aliases()), catalog.skillNames()).classify(jobDescription);
+	}
+
+	public SkillMatcher skillMatcher() {
+		return new SkillMatcher(loadCatalog().aliases());
+	}
+
+	private CatalogData loadCatalog() {
 		Map<String, Integer> aliases = new HashMap<>();
 		Map<Integer, String> skillNames = new HashMap<>();
 		List<CatalogEntry> entries = jdbcClient.sql("""
@@ -53,8 +62,7 @@ public class JobDescriptionSkillCatalog {
 					"SKILL_CATALOG_EMPTY",
 					"The skill catalogue is empty, so this job description cannot be classified.");
 		}
-
-		return new JdClassifier(new SkillMatcher(aliases), skillNames).classify(jobDescription);
+		return new CatalogData(Map.copyOf(aliases), Map.copyOf(skillNames));
 	}
 
 	private void addAlias(Map<String, Integer> aliases, String alias, int skillId) {
@@ -65,5 +73,8 @@ public class JobDescriptionSkillCatalog {
 	}
 
 	private record CatalogEntry(int skillId, String canonicalName, String alias) {
+	}
+
+	private record CatalogData(Map<String, Integer> aliases, Map<Integer, String> skillNames) {
 	}
 }
