@@ -17,24 +17,34 @@ import org.springframework.web.bind.annotation.RestController;
 import com.atsreviewer.backend.analysis.AnalysisDtos.CreateRequest;
 import com.atsreviewer.backend.analysis.AnalysisDtos.Response;
 import com.atsreviewer.backend.guest.GuestSessionService;
+import com.atsreviewer.backend.ratelimit.RateLimiter;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/v1/analyses")
 public class AnalysisController {
 	private final AnalysisService analysisService;
 	private final GuestSessionService guestSessionService;
+	private final RateLimiter rateLimiter;
 
-	public AnalysisController(AnalysisService analysisService, GuestSessionService guestSessionService) {
+	public AnalysisController(
+			AnalysisService analysisService,
+			GuestSessionService guestSessionService,
+			RateLimiter rateLimiter) {
 		this.analysisService = analysisService;
 		this.guestSessionService = guestSessionService;
+		this.rateLimiter = rateLimiter;
 	}
 
 	@PostMapping
 	public ResponseEntity<Response> create(
 			@RequestBody(required = false) CreateRequest request,
 			@CookieValue(name = GuestSessionService.COOKIE_NAME, required = false) String guestCookie,
-			Authentication authentication) {
+			Authentication authentication,
+			HttpServletRequest servletRequest) {
 		Owner owner = resolveOwner(authentication, guestCookie);
+		rateLimiter.checkAnalysis(owner.userId(), owner.guestSessionId(), servletRequest.getRemoteAddr());
 		return ResponseEntity.status(HttpStatus.ACCEPTED)
 				.body(analysisService.create(owner.userId(), owner.guestSessionId(), request));
 	}

@@ -135,6 +135,10 @@ Use the access token as `Authorization: Bearer <access-token>`. Other API routes
 - `GET /v1/analyses/{id}` returns the current status and, when available, the score and skill breakdown.
 - Background processing is not included in this API yet; a queued analysis remains queued until the analysis worker is connected.
 
+## Rate limits
+
+Set `VALKEY_URL` to a Valkey/Redis-compatible URL. Shared token buckets enforce 10 analyses per hour per signed-in user, 3 per hour per guest session, 20 per day per guest IP, 20 resume uploads per day per owner, and 5 login attempts per 15 minutes per IP and email. Rate-limited responses return `429` with a `Retry-After` header. If Valkey is unavailable, login fails closed with `503`; other rate-limited actions log the outage and proceed.
+
 ## Consent
 
 - `POST /v1/consent` accepts `{ "age_confirmed_18": true }` for an authenticated account or a valid guest-session cookie.

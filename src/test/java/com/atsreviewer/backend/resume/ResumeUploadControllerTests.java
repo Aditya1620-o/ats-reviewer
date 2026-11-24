@@ -9,12 +9,14 @@ import org.apache.pdfbox.pdmodel.PDPage;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
 import com.atsreviewer.backend.guest.GuestSessionService;
+import com.atsreviewer.backend.ratelimit.RateLimitTestConfiguration;
 
 import tools.jackson.databind.json.JsonMapper;
 
@@ -25,6 +27,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @org.springframework.boot.test.context.SpringBootTest
 @org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
+@Import(RateLimitTestConfiguration.class)
 class ResumeUploadControllerTests {
 	@Autowired
 	private MockMvc mockMvc;
