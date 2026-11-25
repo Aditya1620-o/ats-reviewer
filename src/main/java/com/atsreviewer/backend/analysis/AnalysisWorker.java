@@ -94,7 +94,7 @@ public class AnalysisWorker {
 
 	private AnalysisInput loadInput(UUID analysisId) {
 		return jdbcClient.sql("""
-				SELECT rv.s3_key, rv.mime,
+				SELECT rv.storage_file_id, rv.mime,
 				       jd.raw_text
 				FROM analyses a
 				JOIN resume_versions rv ON rv.id = a.resume_version_id
@@ -103,7 +103,7 @@ public class AnalysisWorker {
 				""")
 			.param("id", analysisId)
 			.query((resultSet, rowNumber) -> new AnalysisInput(
-					resultSet.getString("s3_key"),
+					resultSet.getString("storage_file_id"),
 					resultSet.getString("mime"),
 					resultSet.getString("raw_text")))
 			.single();

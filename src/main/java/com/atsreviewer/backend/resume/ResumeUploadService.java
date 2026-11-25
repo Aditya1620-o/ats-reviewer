@@ -1,9 +1,7 @@
 package com.atsreviewer.backend.resume;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.Timestamp;
@@ -13,12 +11,14 @@ import java.util.Locale;
 import java.util.UUID;
 
 import org.apache.poi.ooxml.POIXMLException;
-import org.springframework.beans.factory.annotation.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.atsreviewer.backend.engine.extract.ResumeParser;
@@ -26,18 +26,19 @@ import com.atsreviewer.backend.engine.extract.ResumeParser;
 @Service
 public class ResumeUploadService {
 	public static final long MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+	private static final Logger logger = LoggerFactory.getLogger(ResumeUploadService.class);
 
 	private final JdbcClient jdbcClient;
 	private final ResumeParser resumeParser;
-	private final Path uploadDirectory;
+	private final ResumeFileStorage fileStorage;
 
 	public ResumeUploadService(
 			JdbcClient jdbcClient,
 			ResumeParser resumeParser,
-			@Value("${app.upload.directory}") String uploadDirectory) {
+			ResumeFileStorage fileStorage) {
 		this.jdbcClient = jdbcClient;
 		this.resumeParser = resumeParser;
-		this.uploadDirectory = Path.of(uploadDirectory).toAbsolutePath().normalize();
+		this.fileStorage = fileStorage;
 	}
 
 	@Transactional
@@ -101,28 +102,24 @@ public class ResumeUploadService {
 		Instant createdAt = Instant.now();
 		String extension = isPdf ? ".pdf" : ".docx";
 		String storageKey = resumeId + "/" + versionId + extension;
-		Path storedFile = uploadDirectory.resolve(resumeId.toString())
-				.resolve(versionId + extension).normalize();
-		if (!storedFile.startsWith(uploadDirectory)) {
-			throw new IllegalStateException("Generated resume storage path escaped the upload directory.");
-		}
-
+		String fileHash = sha256(bytes);
+		String fileId;
 		try {
-			Files.createDirectories(storedFile.getParent());
-			Files.write(storedFile, bytes, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
-		} catch (IOException exception) {
-			throw new ResumeUploadException(HttpStatus.INTERNAL_SERVER_ERROR, "FILE_STORAGE_FAILED",
-					"The resume could not be stored.");
+			fileId = fileStorage.store(storageKey, bytes, contentType);
+		} catch (RestClientException exception) {
+			throw new ResumeUploadException(HttpStatus.SERVICE_UNAVAILABLE, "FILE_STORAGE_UNAVAILABLE",
+					"The resume storage service is unavailable.", exception);
 		}
 
 		try {
 			insertResume(resumeId, userId, guestSessionId, filename, createdAt);
-			insertVersion(versionId, resumeId, storageKey, sha256(bytes), contentType, bytes.length);
+			insertVersion(versionId, resumeId, fileId, fileHash, contentType, bytes.length);
 		} catch (DataAccessException exception) {
 			try {
-				Files.deleteIfExists(storedFile);
-				Files.deleteIfExists(storedFile.getParent());
-			} catch (IOException cleanupException) {
+				fileStorage.delete(fileId);
+			} catch (RestClientException cleanupException) {
+				logger.error("Could not remove ImageKit file {} after its database insert failed",
+						fileId, cleanupException);
 				exception.addSuppressed(cleanupException);
 			}
 			throw exception;
@@ -160,18 +157,18 @@ public class ResumeUploadService {
 	private void insertVersion(
 			UUID versionId,
 			UUID resumeId,
-			String storageKey,
+			String storageFileId,
 			String sha256,
 			String contentType,
 			int sizeBytes) {
 		jdbcClient.sql("""
 				INSERT INTO resume_versions
-					(id, resume_id, version_no, s3_key, sha256, mime, size_bytes)
-				VALUES (:id, :resumeId, 1, :storageKey, :sha256, :mime, :sizeBytes)
+					(id, resume_id, version_no, storage_file_id, sha256, mime, size_bytes)
+				VALUES (:id, :resumeId, 1, :storageFileId, :sha256, :mime, :sizeBytes)
 				""")
 			.param("id", versionId)
 			.param("resumeId", resumeId)
-			.param("storageKey", storageKey)
+			.param("storageFileId", storageFileId)
 			.param("sha256", sha256)
 			.param("mime", contentType)
 			.param("sizeBytes", sizeBytes)

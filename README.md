@@ -119,7 +119,8 @@ Use the access token as `Authorization: Bearer <access-token>`. Other API routes
 
 - `POST /v1/resumes` accepts `multipart/form-data` with a `file` field and a PDF or DOCX resume, up to 5 MB.
 - Uploads require either a valid access token or a valid `guest_session` cookie. The response includes the resume and version IDs.
-- Files are stored locally under `./uploads` by default. Set `UPLOAD_DIRECTORY` to change the storage directory; production deployments should mount a persistent, access-controlled directory.
+- Files are stored as private files in ImageKit. Set `IMAGEKIT_PRIVATE_KEY` in `.env`; optionally set `IMAGEKIT_FOLDER` to choose their folder.
+- The database stores ImageKit's file ID. Uploads use generated filenames and are marked private so they are not publicly accessible by default.
 - The server checks the filename, media type, file signature, and whether the document can be parsed before storing it.
 
 ## Job descriptions

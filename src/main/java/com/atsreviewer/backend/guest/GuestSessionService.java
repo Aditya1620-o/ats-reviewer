@@ -12,6 +12,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,6 +25,8 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.atsreviewer.backend.resume.ResumeFileDeletionService;
+
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -32,6 +35,7 @@ public class GuestSessionService {
 	public static final String COOKIE_NAME = "guest_session";
 
 	private final JdbcClient jdbcClient;
+	private final ResumeFileDeletionService resumeFileDeletionService;
 	private final Duration guestTtl;
 	private final boolean captchaEnabled;
 	private final String turnstileSecret;
@@ -41,6 +45,7 @@ public class GuestSessionService {
 
 	public GuestSessionService(
 			JdbcClient jdbcClient,
+			ResumeFileDeletionService resumeFileDeletionService,
 			@Value("${app.guest.ttl}") Duration guestTtl,
 			@Value("${app.guest.captcha-enabled:false}") boolean captchaEnabled,
 			@Value("${app.guest.turnstile-secret:}") String turnstileSecret,
@@ -48,6 +53,7 @@ public class GuestSessionService {
 			SecretKey jwtSecretKey,
 			JsonMapper jsonMapper) {
 		this.jdbcClient = jdbcClient;
+		this.resumeFileDeletionService = resumeFileDeletionService;
 		this.guestTtl = guestTtl;
 		this.captchaEnabled = captchaEnabled;
 		this.turnstileSecret = turnstileSecret;
@@ -114,11 +120,21 @@ public class GuestSessionService {
 
 	@Transactional
 	public void purgeExpiredGuests() {
+		Timestamp now = Timestamp.from(Instant.now());
+		List<UUID> expiredGuestIds = jdbcClient.sql("""
+				SELECT id FROM guest_sessions
+				WHERE expires_at <= :now
+				""")
+			.param("now", now)
+			.query((resultSet, rowNumber) -> resultSet.getObject("id", UUID.class))
+			.list();
+		expiredGuestIds.forEach(resumeFileDeletionService::deleteForGuest);
+
 		jdbcClient.sql("""
 				DELETE FROM guest_sessions
 				WHERE expires_at <= :now
 				""")
-			.param("now", Timestamp.from(Instant.now()))
+			.param("now", now)
 			.update();
 	}
 
