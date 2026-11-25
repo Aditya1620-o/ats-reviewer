@@ -18,10 +18,11 @@ import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.atsreviewer.backend.engine.extract.ResumeParser;
+
+import software.amazon.awssdk.core.exception.SdkException;
 
 @Service
 public class ResumeUploadService {
@@ -30,12 +31,12 @@ public class ResumeUploadService {
 
 	private final JdbcClient jdbcClient;
 	private final ResumeParser resumeParser;
-	private final ResumeFileStorage fileStorage;
+	private final S3ResumeFileStorage fileStorage;
 
 	public ResumeUploadService(
 			JdbcClient jdbcClient,
 			ResumeParser resumeParser,
-			ResumeFileStorage fileStorage) {
+			S3ResumeFileStorage fileStorage) {
 		this.jdbcClient = jdbcClient;
 		this.resumeParser = resumeParser;
 		this.fileStorage = fileStorage;
@@ -103,23 +104,22 @@ public class ResumeUploadService {
 		String extension = isPdf ? ".pdf" : ".docx";
 		String storageKey = resumeId + "/" + versionId + extension;
 		String fileHash = sha256(bytes);
-		String fileId;
 		try {
-			fileId = fileStorage.store(storageKey, bytes, contentType);
-		} catch (RestClientException exception) {
+			fileStorage.store(storageKey, bytes, contentType, fileHash);
+		} catch (SdkException exception) {
 			throw new ResumeUploadException(HttpStatus.SERVICE_UNAVAILABLE, "FILE_STORAGE_UNAVAILABLE",
 					"The resume storage service is unavailable.", exception);
 		}
 
 		try {
 			insertResume(resumeId, userId, guestSessionId, filename, createdAt);
-			insertVersion(versionId, resumeId, fileId, fileHash, contentType, bytes.length);
+			insertVersion(versionId, resumeId, storageKey, fileHash, contentType, bytes.length);
 		} catch (DataAccessException exception) {
 			try {
-				fileStorage.delete(fileId);
-			} catch (RestClientException cleanupException) {
-				logger.error("Could not remove ImageKit file {} after its database insert failed",
-						fileId, cleanupException);
+				fileStorage.delete(storageKey);
+			} catch (SdkException cleanupException) {
+				logger.error("Could not remove S3 object {} after its database insert failed", storageKey,
+						cleanupException);
 				exception.addSuppressed(cleanupException);
 			}
 			throw exception;

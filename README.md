@@ -113,14 +113,14 @@ Use the access token as `Authorization: Bearer <access-token>`. Other API routes
 - Set `TURNSTILE_SECRET` and keep `TURNSTILE_ENABLED=true` in production to verify Cloudflare Turnstile tokens.
 - Set `GUEST_TTL_HOURS`, `GUEST_COOKIE_SECURE`, and `IP_HASH_SALT` to override guest-session defaults.
 - `POST /v1/guest-sessions/claim` requires both a valid access token and the guest cookie. It moves the guest's resumes and job descriptions to the authenticated account.
-- Expired guest sessions are deleted hourly; database cascades remove their owned rows.
+- Expired guest sessions are deleted hourly; their S3 objects are removed before database cascades delete owned rows.
 
 ## Resume uploads
 
 - `POST /v1/resumes` accepts `multipart/form-data` with a `file` field and a PDF or DOCX resume, up to 5 MB.
 - Uploads require either a valid access token or a valid `guest_session` cookie. The response includes the resume and version IDs.
-- Files are stored as private files in ImageKit. Set `IMAGEKIT_PRIVATE_KEY` in `.env`; optionally set `IMAGEKIT_FOLDER` to choose their folder.
-- The database stores ImageKit's file ID. Uploads use generated filenames and are marked private so they are not publicly accessible by default.
+- Files are stored in an S3-compatible bucket. Configure `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY`, and `S3_SECRET_KEY` in `.env`; AWS deployments can use the default AWS credential chain instead.
+- For MinIO, set `S3_ENDPOINT` to the MinIO URL and create the configured bucket before uploading.
 - The server checks the filename, media type, file signature, and whether the document can be parsed before storing it.
 
 ## Job descriptions
@@ -140,6 +140,14 @@ Use the access token as `Authorization: Bearer <access-token>`. Other API routes
 - `GET /v1/analyses/{id}` returns the current status and, when available, the score and skill breakdown.
 - A scheduled worker claims queued analyses, parses the resume, scores it against the job description, and saves the result. Failed analyses retry up to three attempts.
 
+## Shared reports
+
+- `POST /v1/analyses/{id}/share` creates a public link for an owned completed analysis. Sign in or provide a valid `guest_session` cookie.
+- `GET /v1/shared-reports/{token}` returns the score and skill breakdown without authentication.
+- `DELETE /v1/shared-reports/{token}` revokes a link and requires the owner account or guest session.
+- Shared report tokens are random 22-character URL-safe values and expire after seven days by default. Override the lifetime with `SHARED_REPORT_TTL`.
+- Expired, revoked, unknown, and incomplete reports cannot be viewed.
+
 ## Rate limits
 
 Set `VALKEY_URL` to a Valkey/Redis-compatible URL. Shared token buckets enforce 10 analyses per hour per signed-in user, 3 per hour per guest session, 20 per day per guest IP, 20 resume uploads per day per owner, and 5 login attempts per 15 minutes per IP and email. Rate-limited responses return `429` with a `Retry-After` header. If Valkey is unavailable, login fails closed with `503`; other rate-limited actions log the outage and proceed.
@@ -147,7 +155,7 @@ Set `VALKEY_URL` to a Valkey/Redis-compatible URL. Shared token buckets enforce 
 ## Consent
 
 - `POST /v1/consent` accepts `{ "age_confirmed_18": true }` for an authenticated account or a valid guest-session cookie.
-- `DELETE /v1/consent` withdraws consent and deletes the subject's resumes and job descriptions.
+- `DELETE /v1/consent` withdraws consent and deletes the subject's S3 resume files, resumes, and job descriptions.
 - The active consent notice is configured with `NOTICE_VERSION`.
 - `CONSENT_SUBJECT_PEPPER` protects the content-free subject hash stored in consent and audit records.
 - Guest creation rejects `age_confirmed_18: false` and stores no guest data.

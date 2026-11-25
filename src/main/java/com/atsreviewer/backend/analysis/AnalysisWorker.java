@@ -1,8 +1,5 @@
 package com.atsreviewer.backend.analysis;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
@@ -10,7 +7,6 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -22,6 +18,7 @@ import com.atsreviewer.backend.engine.model.JdSkill;
 import com.atsreviewer.backend.engine.model.ScoreItem;
 import com.atsreviewer.backend.engine.model.ScoreResult;
 import com.atsreviewer.backend.jobdescription.JobDescriptionSkillCatalog;
+import com.atsreviewer.backend.resume.S3ResumeFileStorage;
 
 @Component
 public class AnalysisWorker {
@@ -31,17 +28,17 @@ public class AnalysisWorker {
 	private final JdbcClient jdbcClient;
 	private final ResumeParser resumeParser;
 	private final JobDescriptionSkillCatalog skillCatalog;
-	private final Path uploadDirectory;
+	private final S3ResumeFileStorage fileStorage;
 
 	public AnalysisWorker(
 			JdbcClient jdbcClient,
 			ResumeParser resumeParser,
 			JobDescriptionSkillCatalog skillCatalog,
-			@Value("${app.upload.directory}") String uploadDirectory) {
+			S3ResumeFileStorage fileStorage) {
 		this.jdbcClient = jdbcClient;
 		this.resumeParser = resumeParser;
 		this.skillCatalog = skillCatalog;
-		this.uploadDirectory = Path.of(uploadDirectory).toAbsolutePath().normalize();
+		this.fileStorage = fileStorage;
 	}
 
 	@Scheduled(fixedDelay = 5000)
@@ -109,12 +106,8 @@ public class AnalysisWorker {
 			.single();
 	}
 
-	private byte[] readResume(String storageKey) throws IOException {
-		Path resumeFile = uploadDirectory.resolve(storageKey).normalize();
-		if (!resumeFile.startsWith(uploadDirectory)) {
-			throw new IOException("Resume storage key escaped the upload directory.");
-		}
-		return Files.readAllBytes(resumeFile);
+	private byte[] readResume(String storageKey) {
+		return fileStorage.read(storageKey);
 	}
 
 	@Transactional

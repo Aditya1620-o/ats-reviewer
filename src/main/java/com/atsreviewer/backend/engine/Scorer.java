@@ -7,7 +7,6 @@ import com.atsreviewer.backend.engine.model.ScoreResult;
 import com.atsreviewer.backend.engine.model.Section;
 import com.atsreviewer.backend.engine.model.Status;
 
-import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -41,8 +40,6 @@ public final class Scorer {
                 found.put(section, matcher.findSkillIds(text)));
 
         List<ScoreItem> items = jdSkills.stream()
-                .sorted(Comparator.comparing(JdSkill::required).reversed()
-                        .thenComparing(JdSkill::name))
                 .map(skill -> toItem(skill, found))
                 .toList();
 

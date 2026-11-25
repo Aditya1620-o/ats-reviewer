@@ -121,14 +121,14 @@ public class GuestSessionService {
 	@Transactional
 	public void purgeExpiredGuests() {
 		Timestamp now = Timestamp.from(Instant.now());
-		List<UUID> expiredGuestIds = jdbcClient.sql("""
+		jdbcClient.sql("""
 				SELECT id FROM guest_sessions
 				WHERE expires_at <= :now
 				""")
 			.param("now", now)
 			.query((resultSet, rowNumber) -> resultSet.getObject("id", UUID.class))
-			.list();
-		expiredGuestIds.forEach(resumeFileDeletionService::deleteForGuest);
+			.list()
+			.forEach(resumeFileDeletionService::deleteForGuest);
 
 		jdbcClient.sql("""
 				DELETE FROM guest_sessions

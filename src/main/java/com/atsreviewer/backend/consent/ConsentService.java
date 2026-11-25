@@ -7,12 +7,13 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.UUID;
 
+import software.amazon.awssdk.core.exception.SdkException;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestClientException;
 
 import com.atsreviewer.backend.resume.ResumeFileDeletionService;
 
@@ -93,7 +94,6 @@ public class ConsentService {
 		}
 		Instant now = Instant.now();
 		if (guestSessionId != null) {
-			deleteStoredResumes(null, guestSessionId);
 			jdbcClient.sql("""
 					UPDATE consent_records
 					SET withdrawn_at = :now, guest_session_id = NULL
@@ -102,6 +102,7 @@ public class ConsentService {
 				.param("now", Timestamp.from(now))
 				.param("guestSessionId", guestSessionId)
 				.update();
+			deleteGuestResumeFiles(guestSessionId);
 			jdbcClient.sql("DELETE FROM job_descriptions WHERE guest_session_id = :id")
 				.param("id", guestSessionId)
 				.update();
@@ -114,7 +115,6 @@ public class ConsentService {
 			return;
 		}
 
-		deleteStoredResumes(userId, null);
 		jdbcClient.sql("""
 				UPDATE consent_records
 				SET withdrawn_at = :now, user_id = NULL
@@ -123,6 +123,7 @@ public class ConsentService {
 			.param("now", Timestamp.from(now))
 			.param("userId", userId)
 			.update();
+		deleteUserResumeFiles(userId);
 		jdbcClient.sql("DELETE FROM job_descriptions WHERE user_id = :id")
 			.param("id", userId)
 			.update();
@@ -135,6 +136,24 @@ public class ConsentService {
 		return noticeVersion;
 	}
 
+	private void deleteGuestResumeFiles(UUID guestSessionId) {
+		try {
+			resumeFileDeletionService.deleteForGuest(guestSessionId);
+		} catch (SdkException exception) {
+			throw new ConsentException(HttpStatus.SERVICE_UNAVAILABLE, "FILE_STORAGE_UNAVAILABLE",
+					"Resume files could not be deleted because storage is unavailable.", exception);
+		}
+	}
+
+	private void deleteUserResumeFiles(UUID userId) {
+		try {
+			resumeFileDeletionService.deleteForUser(userId);
+		} catch (SdkException exception) {
+			throw new ConsentException(HttpStatus.SERVICE_UNAVAILABLE, "FILE_STORAGE_UNAVAILABLE",
+					"Resume files could not be deleted because storage is unavailable.", exception);
+		}
+	}
+
 	private String hashSubject(String subject) {
 		try {
 			byte[] digest = MessageDigest.getInstance("SHA-256")
@@ -142,19 +161,6 @@ public class ConsentService {
 			return HexFormat.of().formatHex(digest);
 		} catch (java.security.NoSuchAlgorithmException exception) {
 			throw new IllegalStateException("SHA-256 is unavailable.", exception);
-		}
-	}
-
-	private void deleteStoredResumes(UUID userId, UUID guestSessionId) {
-		try {
-			if (userId != null) {
-				resumeFileDeletionService.deleteForUser(userId);
-			} else {
-				resumeFileDeletionService.deleteForGuest(guestSessionId);
-			}
-		} catch (RestClientException exception) {
-			throw new ConsentException(HttpStatus.SERVICE_UNAVAILABLE, "FILE_STORAGE_UNAVAILABLE",
-					"Resume files could not be deleted. Please try again.", exception);
 		}
 	}
 }

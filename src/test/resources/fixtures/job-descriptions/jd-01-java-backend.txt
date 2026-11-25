@@ -1,0 +1,18 @@
+Backend Software Engineer
+
+Responsibilities
+- Design and maintain backend services and REST APIs.
+- Improve data access, reliability, and automated test coverage.
+- Collaborate on containerized cloud deployments.
+
+Required Skills
+- Java and Spring Boot
+- REST API design
+- PostgreSQL
+- JUnit
+
+Preferred Skills
+- Docker
+- AWS
+- Kafka
+- CI/CD

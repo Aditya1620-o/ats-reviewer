@@ -9,9 +9,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class ResumeFileDeletionService {
 	private final JdbcClient jdbcClient;
-	private final ResumeFileStorage fileStorage;
+	private final S3ResumeFileStorage fileStorage;
 
-	public ResumeFileDeletionService(JdbcClient jdbcClient, ResumeFileStorage fileStorage) {
+	public ResumeFileDeletionService(JdbcClient jdbcClient, S3ResumeFileStorage fileStorage) {
 		this.jdbcClient = jdbcClient;
 		this.fileStorage = fileStorage;
 	}
@@ -35,10 +35,10 @@ public class ResumeFileDeletionService {
 	}
 
 	private void deleteFiles(String query, UUID ownerId) {
-		List<String> fileIds = jdbcClient.sql(query)
+		List<String> storageKeys = jdbcClient.sql(query)
 				.param("ownerId", ownerId)
 				.query((resultSet, rowNumber) -> resultSet.getString("storage_file_id"))
 				.list();
-		fileIds.forEach(fileStorage::delete);
+		storageKeys.forEach(fileStorage::delete);
 	}
 }

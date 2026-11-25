@@ -7,8 +7,8 @@ ATS Resume Reviewer — Low-Level Design
 
 Implementation-level design for the reviewer: one Java 21 + Spring Boot codebase run as
 two processes (API and JobRunr worker), PostgreSQL, Valkey (Redis-compatible) and
-ImageKit for private résumé file storage. Deployment region and data residency depend
-on the ImageKit account configuration. It follows the system architecture doc and the PRD.
+S3-compatible storage for private résumé files. Deployment region and data residency depend
+on the configured bucket and region. It follows the system architecture doc and the PRD.
 
 Code structure
 
@@ -21,7 +21,7 @@ profiles.
   ├── src/main/java/dev/atsreviewer/
   │   ├── AtsReviewerApplication.java
   │   ├── config/          # @ConfigurationProperties, SecurityConfig, JobRunr,
-  ImageKit client, Bucket4j
+  S3 client, Bucket4j
   │   ├── api/             # @RestController classes + request/response records
   only
   │   │   ├── AuthController.java
@@ -41,7 +41,7 @@ profiles.
   │   │   ├── JdClassifier.java
   │   │   └── Scorer.java
   │   ├── domain/          # JPA entities + Spring Data repositories
-  │   ├── infra/           # ObjectStorage (ImageKit REST API), RateLimiter (Bucket4j),
+  │   ├── infra/           # ObjectStorage (S3 API), RateLimiter (Bucket4j),
   CaptchaVerifier
   │   ├── jobs/            # AnalysisJob, PurgeJobs, AuditJobs (JobRunr)
   │   └── error/           # AppException hierarchy, TransientException,
@@ -275,10 +275,10 @@ ATS Resume Reviewer — Low-Level Design
   );
   CREATE INDEX ON suggestions (cache_key);
 
-    ON DELETE CASCADE from users down makes account deletion one statement; ImageKit
-    files are deleted by the purge job before that statement runs.
+    ON DELETE CASCADE from users down makes account deletion one statement; S3
+    objects are deleted before that statement runs.
    Guests work the same way: the hourly PurgeJobs.purgeExpiredGuests job deletes
-    their ImageKit files, then the expired guest_sessions rows, which cascade to
+    their S3 objects, then the expired guest_sessions rows, which cascade to
     everything they own.
     version_no is assigned inside the insert transaction: first lock the parent row with
    `SELECT id FROM resumes WHERE id = :id FOR UPDATE`, then compute SELECT
@@ -378,7 +378,7 @@ All endpoints are under /v1 , JSON in and out, authenticated with Authorization:
 Bearer <access token> except signup, login and refresh.
 
 POST /v1/resumes — upload a PDF or DOCX using multipart/form-data with a `file` field.
-The API validates the file, uploads it to ImageKit as a private file, and returns 201:
+The API validates the file, uploads it to a private S3-compatible bucket, and returns 201:
 
   {
     "resume_id": "b1e7…",
@@ -1136,8 +1136,10 @@ missing secret crashes the app at boot instead of mid-request.
   VALKEY_URL                    rediss://…                  Required; TLS in
                                                             production
 
-  IMAGEKIT_PRIVATE_KEY               ImageKit private key             Required for uploads
-  IMAGEKIT_FOLDER                    resumes                          Optional folder path
+  S3_ENDPOINT                        http://localhost:9000             Optional S3-compatible endpoint
+  S3_REGION                          us-east-1                          Required
+  S3_BUCKET                          ats-reviewer-resumes               Required
+  S3_ACCESS_KEY / S3_SECRET_KEY      deployment credentials             Optional with AWS role credentials
 
 
 
@@ -1215,14 +1217,14 @@ ATS Resume Reviewer — Low-Level Design
 
   Integration   API + services + DB    JUnit 5 + Testcontainers  Ownership (other user
             + Valkey               (Postgres, Valkey,        gets 404), duplicate
-                                     ImageKit mock), MockMvc, upload validation,
+                                     S3 client mock), MockMvc, upload validation,
                                    ArchUnit                POST /analyses , rate
                                                                              limit 429 with Retry-
                                                           After , deletion removes
                                                        rows and objects
 
  Worker      AnalysisJob.run     JobRunr with in-         Crash mid-job then re-run
-            end to end          memory storage, job      gives one result set; ImageKit
+            end to end          memory storage, job      gives one result set; S3
                                     invoked directly          timeout retried; no-text
                                                 PDF fails without retry
 
