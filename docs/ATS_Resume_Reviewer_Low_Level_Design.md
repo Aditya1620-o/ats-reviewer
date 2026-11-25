@@ -7,8 +7,8 @@ ATS Resume Reviewer — Low-Level Design
 
 Implementation-level design for the reviewer: one Java 21 + Spring Boot codebase run as
 two processes (API and JobRunr worker), PostgreSQL, Valkey (Redis-compatible) and
-OCI Object Storage (S3-compatible), all on a free Oracle Cloud VM in India. It follows the
-system architecture doc and the PRD.
+S3-compatible storage for private résumé files. Deployment region and data residency depend
+on the configured bucket and region. It follows the system architecture doc and the PRD.
 
 Code structure
 
@@ -41,7 +41,7 @@ profiles.
   │   │   ├── JdClassifier.java
   │   │   └── Scorer.java
   │   ├── domain/          # JPA entities + Spring Data repositories
-  │   ├── infra/           # ObjectStorage (S3 SDK), RateLimiter (Bucket4j),
+  │   ├── infra/           # ObjectStorage (S3 API), RateLimiter (Bucket4j),
   CaptchaVerifier
   │   ├── jobs/            # AnalysisJob, PurgeJobs, AuditJobs (JobRunr)
   │   └── error/           # AppException hierarchy, TransientException,
@@ -67,7 +67,7 @@ ATS Resume Reviewer — Low-Level Design
   ArchUnit
   ├── data/skills_seed.csv              # ~300 skills + aliases
   ├── Dockerfile                        # multi-stage, Temurin 21 JRE, ARM64
-  └── docker-compose.yml                # api, worker, postgres, valkey, minio
+  └── docker-compose.yml                # api, worker, postgres, valkey
   (local)
 
 Dependency rule: api → service → (engine, domain, infra) . The engine imports
@@ -148,7 +148,7 @@ ATS Resume Reviewer — Low-Level Design
     id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     resume_id       uuid NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
     version_no      int  NOT NULL,
-    s3_key          text NOT NULL,
+    storage_file_id text NOT NULL,
     sha256          char(64) NOT NULL,
     mime            text NOT NULL CHECK (mime IN ('application/pdf',
                       'application/vnd.openxmlformats-
@@ -276,7 +276,7 @@ ATS Resume Reviewer — Low-Level Design
   CREATE INDEX ON suggestions (cache_key);
 
     ON DELETE CASCADE from users down makes account deletion one statement; S3
-    objects are deleted by the PurgeJobs.purgeUser job before that statement runs.
+    objects are deleted before that statement runs.
    Guests work the same way: the hourly PurgeJobs.purgeExpiredGuests job deletes
     their S3 objects, then the expired guest_sessions rows, which cascade to
     everything they own.
@@ -377,26 +377,17 @@ API contracts
 All endpoints are under /v1 , JSON in and out, authenticated with Authorization:
 Bearer <access token> except signup, login and refresh.
 
-POST /v1/resumes/upload-url — get a presigned S3 PUT
+POST /v1/resumes — upload a PDF or DOCX using multipart/form-data with a `file` field.
+The API validates the file, uploads it to a private S3-compatible bucket, and returns 201:
 
-  // request
-  { "resume_id": "b1e7…" | null, "title": "SDE résumé", "mime":
-  "application/pdf", "size_bytes": 182340 }
-  // 200
-  { "resume_id": "b1e7…", "upload_id": "u_9f2c…", "url": "https://s3…",
-  "headers": { "Content-Type": "application/pdf" }, "expires_in": 300 }
-
-POST /v1/resumes/{resume_id}/versions — confirm the upload ( Idempotency-Key
-header supported)
-
-  // request
-  { "upload_id": "u_9f2c…" }
-  // 201
-  { "version_id": "7c41…", "version_no": 3, "sha256": "e3b0…", "created_at":
-  "2026-11-20T15:42:10Z" }
-  // 409 when the same file was already uploaded
-  { "error": { "code": "DUPLICATE_VERSION", "message": "This file matches
-  version 2.", "details": { "version_id": "5a10…" } } }
+  {
+    "resume_id": "b1e7…",
+    "version_id": "7c41…",
+    "filename": "resume.pdf",
+    "mime_type": "application/pdf",
+    "size_bytes": 182340,
+    "created_at": "2026-11-20T15:42:10Z"
+  }
 
 POST /v1/analyses — start (or reuse) an analysis
 
@@ -1145,8 +1136,10 @@ missing secret crashes the app at boot instead of mid-request.
   VALKEY_URL                    rediss://…                  Required; TLS in
                                                             production
 
-  S3_BUCKET , S3_ENDPOINT ,       ats-resumes , MinIO URL     Endpoint empty = AWS
-  S3_REGION                         locally                         default
+  S3_ENDPOINT                        http://localhost:9000             Optional S3-compatible endpoint
+  S3_REGION                          us-east-1                          Required
+  S3_BUCKET                          ats-reviewer-resumes               Required
+  S3_ACCESS_KEY / S3_SECRET_KEY      deployment credentials             Optional with AWS role credentials
 
 
 
@@ -1224,7 +1217,7 @@ ATS Resume Reviewer — Low-Level Design
 
   Integration   API + services + DB    JUnit 5 + Testcontainers  Ownership (other user
             + Valkey               (Postgres, Valkey,        gets 404), duplicate
-                                     MinIO), MockMvc,        upload 409, idempotent
+                                     S3 client mock), MockMvc, upload validation,
                                    ArchUnit                POST /analyses , rate
                                                                              limit 429 with Retry-
                                                           After , deletion removes

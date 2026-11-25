@@ -11,14 +11,14 @@ import java.util.Locale;
 import java.util.UUID;
 
 import org.apache.poi.ooxml.POIXMLException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.atsreviewer.backend.engine.extract.ResumeParser;
 
@@ -157,18 +157,18 @@ public class ResumeUploadService {
 	private void insertVersion(
 			UUID versionId,
 			UUID resumeId,
-			String storageKey,
+			String storageFileId,
 			String sha256,
 			String contentType,
 			int sizeBytes) {
 		jdbcClient.sql("""
 				INSERT INTO resume_versions
-					(id, resume_id, version_no, s3_key, sha256, mime, size_bytes)
-				VALUES (:id, :resumeId, 1, :storageKey, :sha256, :mime, :sizeBytes)
+					(id, resume_id, version_no, storage_file_id, sha256, mime, size_bytes)
+				VALUES (:id, :resumeId, 1, :storageFileId, :sha256, :mime, :sizeBytes)
 				""")
 			.param("id", versionId)
 			.param("resumeId", resumeId)
-			.param("storageKey", storageKey)
+			.param("storageFileId", storageFileId)
 			.param("sha256", sha256)
 			.param("mime", contentType)
 			.param("sizeBytes", sizeBytes)

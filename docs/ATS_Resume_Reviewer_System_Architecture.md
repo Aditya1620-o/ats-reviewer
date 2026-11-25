@@ -92,7 +92,7 @@ system architecture · 7 components
 
 Request flow
 
-  1. The web app asks the API for a presigned URL and uploads the résumé straight to S3.
+  1. The web app uploads the résumé through the API, which stores it as a private S3 object.
 
 
 
@@ -168,7 +168,7 @@ scoring engine are never duplicated.
                    breakdown, parser view, version      Cloudflare Pages
                        history; polls for results
 
- API server         Auth, file validation, upload URLs,    Spring Boot (profile api ) in
+ API server         Auth, file validation, resume uploads, Spring Boot (profile api ) in
                  enqueue jobs, serve results, rate     Docker on the Oracle Cloud VM
                        limiting
 
@@ -188,8 +188,8 @@ scoring engine are never duplicated.
  Cache and rate     Rate-limit buckets, short-lived       Valkey (open-source Redis fork)
   limits            cache                                   in Docker on the VM
 
- Object storage     Original résumé files, private       OCI Object Storage, Mumbai,
-                                                    through its S3-compatible API
+ Object storage     Original résumé files, private       S3-compatible private bucket;
+                                                    deployment region is configurable
 
  LLM provider       Bullet rewrite suggestions         Not in the free v1; added later on a
                                                        paid tier
@@ -293,10 +293,8 @@ ATS Resume Reviewer — System Architecture
                                           hold across API
                                            instances
 
-  File storage     OCI Object Storage,      10 GB Standard storage   10 GB cap; fine
-                Mumbai, via AWS SDK     is Always Free (Oracle)   because guest files
-                    for Java v2 (S3-         and stays in India         are deleted after 24
-                  compatible endpoint)                         h
+  File storage     S3-compatible bucket  Provider determines       Confirm region and
+                through server-side API  limits and pricing        access policy for production
 
  Auth            Spring Security          Standard, well-tested;    People without a
                OAuth2 client (Google   no email service         Google account use
@@ -368,9 +366,9 @@ Processing pipeline and scoring engine
 The score comes from deterministic rules, not from the LLM, so it is reproducible and
 every point is explainable.
 
-  1. Validate and store. The browser uploads straight to S3 with a presigned URL; the API
-    then checks magic bytes (not the extension) and size, records the SHA-256, and
-    creates a resume_version row.
+  1. Validate and store. The browser uploads a PDF or DOCX to the API; the API checks
+    magic bytes (not the extension) and size, stores a private S3 object, records the
+    SHA-256 and object key, and creates a resume_version row.
   2. Extract text. PyMuPDF for PDFs (text with block positions), python-docx for DOCX.
     Flag pages with almost no text as image-only (OCR is a later add-on).
   3. Layout warnings. Use block x-positions to detect two-column layouts and tables,
@@ -459,7 +457,7 @@ version and one JD, so history is never overwritten.
                       expires_at, title, created_at
 
  resume_versions    id, resume_id → resumes,          Unique (resume_id, version_no);
-                     version_no, s3_key, sha256, mime,   unique (resume_id, sha256) stops
+                     version_no, storage_file_id, sha256, mime, unique (resume_id, sha256) stops
                      size_bytes, extracted_text,          duplicate uploads
                     sections (jsonb), parse_warnings
                        (jsonb), created_at
@@ -521,8 +519,8 @@ gets 202 Accepted , and polls until it is done.
 
  POST      /v1/auth/refresh               Rotate tokens                     200
 
- POST     /v1/resumes/upload-url       Get a presigned S3 PUT URL for a      200
-                                new version
+ POST     /v1/resumes                  Upload a PDF or DOCX as a private    201
+                                S3 object
 
  POST      /v1/resumes/{id}/versions      Confirm upload, register the version    201
 
@@ -585,14 +583,11 @@ Auth
 
 Files
 
-   The presigned PUT URL expires in 5 minutes and is locked to one key, content type
-   and a 5 MB max.
-   On confirm, the API reads the object's size and first bytes to check magic bytes
-     ( %PDF , DOCX zip header); anything else is deleted and rejected with 415.
-    Parsing runs only in the worker, with a 60 s timeout and a memory limit, so a malicious
-    or huge PDF cannot take down the API.
-   Bucket is private with server-side encryption; downloads use 5-minute presigned
-   GET URLs.
+   The API accepts multipart uploads up to 5 MB, checks the filename, MIME type,
+   file signature and parseability, then sends the validated bytes to S3 as a
+   private object. The database stores the S3 object key with the resume version.
+   S3 credentials are used only by the backend and are never returned to the
+   browser.
 
 Privacy
 
@@ -639,8 +634,8 @@ frontend is a static site on Cloudflare Pages.
    VM: Ampere A1, 2 OCPUs, 12 GB RAM, Ubuntu, in the Mumbai or Hyderabad home
     region. Containers: Caddy (HTTPS), API, 2 worker processes, PostgreSQL, Valkey,
    Uptime Kuma.
-     Files: OCI Object Storage in the same region, private bucket, uploads through time-
-    limited signed URLs.
+     Files: private S3-compatible objects, uploaded through the backend. Configure
+     least-privilege credentials and confirm the bucket region before production.
     Frontend: static Next.js build on Cloudflare Pages; Cloudflare DNS and Turnstile in
     front.
     CI/CD: GitHub Actions runs tests, builds an ARM image, pushes it to GitHub
@@ -684,7 +679,7 @@ ATS Resume Reviewer — System Architecture
                                      heartbeats) and runs the job again; the re-run is
                                       safe because results are rewritten by analysis id
 
- S3 or LLM timeout                  Retry 3 times with exponential backoff (2 s, 8 s, 30
+ S3 or LLM timeout                   Retry 3 times with exponential backoff (2 s, 8 s, 30
                                                  s), then mark failed
 
  Unparseable file               No retry; status failed with a readable reason
@@ -750,9 +745,9 @@ ATS Resume Reviewer — System Architecture
                                                           for idempotency,
                                                    jsonb for sections
 
-  File         Presigned S3 PUT   Upload through   API never holds 5  —
-  upload                         the API       MB bodies; scales
- path                                                    for free
+  File         S3-compatible    Upload through   API validates and     —
+  upload       bucket            the backend      controls uploaded files
+ path
 
   Skill          Alias table in DB    Embeddings /     Transparent and     Soft skills or
  matching                      semantic search   editable by the     synonyms the

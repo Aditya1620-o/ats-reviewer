@@ -48,7 +48,7 @@ CREATE TABLE resume_versions (
     id UUID PRIMARY KEY,
     resume_id UUID NOT NULL REFERENCES resumes(id) ON DELETE CASCADE,
     version_no INTEGER NOT NULL,
-    s3_key VARCHAR(1024) NOT NULL,
+    storage_file_id VARCHAR(1024) NOT NULL,
     sha256 VARCHAR(64) NOT NULL,
     mime VARCHAR(255) NOT NULL,
     size_bytes INTEGER NOT NULL,

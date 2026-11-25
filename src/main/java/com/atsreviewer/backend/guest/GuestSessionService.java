@@ -12,6 +12,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -119,12 +120,12 @@ public class GuestSessionService {
 
 	@Transactional
 	public void purgeExpiredGuests() {
-		Instant now = Instant.now();
+		Timestamp now = Timestamp.from(Instant.now());
 		jdbcClient.sql("""
 				SELECT id FROM guest_sessions
 				WHERE expires_at <= :now
 				""")
-			.param("now", Timestamp.from(now))
+			.param("now", now)
 			.query((resultSet, rowNumber) -> resultSet.getObject("id", UUID.class))
 			.list()
 			.forEach(resumeFileDeletionService::deleteForGuest);
@@ -133,7 +134,7 @@ public class GuestSessionService {
 				DELETE FROM guest_sessions
 				WHERE expires_at <= :now
 				""")
-			.param("now", Timestamp.from(now))
+			.param("now", now)
 			.update();
 	}
 

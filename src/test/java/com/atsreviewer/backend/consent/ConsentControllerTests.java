@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -25,8 +26,6 @@ import static org.mockito.Mockito.verify;
 import com.atsreviewer.backend.AtsReviewerBackendApplication;
 
 import tools.jackson.databind.json.JsonMapper;
-import org.mockito.ArgumentCaptor;
-
 @SpringBootTest(classes = AtsReviewerBackendApplication.class)
 @AutoConfigureMockMvc
 class ConsentControllerTests {
@@ -96,7 +95,7 @@ class ConsentControllerTests {
 			.update();
 		jdbcClient.sql("""
 				INSERT INTO resume_versions
-					(id, resume_id, version_no, s3_key, sha256, mime, size_bytes)
+					(id, resume_id, version_no, storage_file_id, sha256, mime, size_bytes)
 				VALUES (:id, :resumeId, 1, :storageKey, :sha256, :mime, :sizeBytes)
 				""")
 			.param("id", versionId)
@@ -106,12 +105,10 @@ class ConsentControllerTests {
 			.param("mime", "application/pdf")
 			.param("sizeBytes", 100)
 			.update();
-
 		mockMvc.perform(delete("/v1/consent")
 				.cookie(new jakarta.servlet.http.Cookie("guest_session", guestCookie)))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.deleted").value(true));
-
 		ArgumentCaptor<DeleteObjectRequest> requestCaptor = ArgumentCaptor.forClass(DeleteObjectRequest.class);
 		verify(s3Client).deleteObject(requestCaptor.capture());
 		assertEquals(storageKey, requestCaptor.getValue().key());

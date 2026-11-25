@@ -52,8 +52,8 @@ class AnalysisWorkerTests {
 		UUID resumeVersionId = UUID.randomUUID();
 		jdbcClient.sql("""
 				INSERT INTO resume_versions
-					(id, resume_id, version_no, s3_key, sha256, mime, size_bytes, created_at)
-				VALUES (:id, :resumeId, 1, 'unused.pdf', :sha, 'application/pdf', 10, :createdAt)
+					(id, resume_id, version_no, storage_file_id, sha256, mime, size_bytes, created_at)
+				VALUES (:id, :resumeId, 1, 'unused-file-id', :sha, 'application/pdf', 10, :createdAt)
 				""")
 			.param("id", resumeVersionId)
 			.param("resumeId", resumeId)
@@ -139,8 +139,8 @@ class AnalysisWorkerTests {
 		UUID resumeVersionId = UUID.randomUUID();
 		jdbcClient.sql("""
 				INSERT INTO resume_versions
-					(id, resume_id, version_no, s3_key, sha256, mime, size_bytes, created_at)
-				VALUES (:id, :resumeId, 1, 'unused.pdf', :sha, 'application/pdf', 10, :createdAt)
+					(id, resume_id, version_no, storage_file_id, sha256, mime, size_bytes, created_at)
+				VALUES (:id, :resumeId, 1, 'unused-file-id', :sha, 'application/pdf', 10, :createdAt)
 				""")
 			.param("id", resumeVersionId)
 			.param("resumeId", resumeId)

@@ -18,7 +18,7 @@ public class ResumeFileDeletionService {
 
 	public void deleteForUser(UUID userId) {
 		deleteFiles("""
-				SELECT rv.s3_key
+				SELECT rv.storage_file_id
 				FROM resume_versions rv
 				JOIN resumes r ON r.id = rv.resume_id
 				WHERE r.user_id = :ownerId
@@ -27,7 +27,7 @@ public class ResumeFileDeletionService {
 
 	public void deleteForGuest(UUID guestSessionId) {
 		deleteFiles("""
-				SELECT rv.s3_key
+				SELECT rv.storage_file_id
 				FROM resume_versions rv
 				JOIN resumes r ON r.id = rv.resume_id
 				WHERE r.guest_session_id = :ownerId
@@ -37,7 +37,7 @@ public class ResumeFileDeletionService {
 	private void deleteFiles(String query, UUID ownerId) {
 		List<String> storageKeys = jdbcClient.sql(query)
 				.param("ownerId", ownerId)
-				.query((resultSet, rowNumber) -> resultSet.getString("s3_key"))
+				.query((resultSet, rowNumber) -> resultSet.getString("storage_file_id"))
 				.list();
 		storageKeys.forEach(fileStorage::delete);
 	}

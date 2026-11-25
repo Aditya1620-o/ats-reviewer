@@ -102,7 +102,7 @@ class GuestSessionControllerTests {
 			.update();
 		jdbcClient.sql("""
 				INSERT INTO resume_versions
-					(id, resume_id, version_no, s3_key, sha256, mime, size_bytes)
+					(id, resume_id, version_no, storage_file_id, sha256, mime, size_bytes)
 				VALUES (:id, :resumeId, 1, :storageKey, :sha256, :mime, :sizeBytes)
 				""")
 			.param("id", versionId)
