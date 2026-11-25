@@ -1,0 +1,22 @@
+Candidate 02
+Email: candidate02@example.test
+
+Summary
+Data engineer focused on reliable batch pipelines and analytics platforms.
+
+Experience
+Northstar Demo Labs - Data Engineer | 2022-Present
+- Developed Python and SQL pipelines to validate and load event data.
+- Orchestrated scheduled workflows with Apache Airflow.
+- Processed large datasets with Apache Spark and AWS.
+
+Projects
+Quality Metrics Pipeline
+- Modeled reporting tables in Snowflake and monitored data freshness.
+- Added automated checks for schema changes and duplicate records.
+
+Skills
+Python, SQL, Apache Spark, Apache Airflow, AWS, Snowflake, ETL, Git
+
+Education
+Bachelor of Science in Information Systems, Example University | 2022

@@ -1,0 +1,18 @@
+Data Engineer
+
+Responsibilities
+- Build and operate dependable data ingestion and transformation pipelines.
+- Orchestrate workflows and validate data quality.
+- Support analytics workloads in a cloud environment.
+
+Required Skills
+- Python
+- SQL
+- Apache Spark
+- Apache Airflow
+
+Preferred Skills
+- AWS
+- Snowflake
+- ETL
+- Data modeling

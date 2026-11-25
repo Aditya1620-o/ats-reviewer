@@ -1,0 +1,22 @@
+Candidate 03
+Email: candidate03@example.test
+
+Summary
+Frontend engineer building accessible web applications and reusable interfaces.
+
+Experience
+Sample Web Studio - Frontend Engineer | 2023-Present
+- Built responsive interfaces with TypeScript and React.
+- Improved accessibility and page performance using browser profiling.
+- Added end-to-end coverage with Playwright.
+
+Projects
+Community Events Portal
+- Developed a Node.js API integration and reusable React components.
+- Added visual states for loading, validation, and network errors.
+
+Skills
+TypeScript, React, JavaScript, Node.js, HTML, CSS, accessibility, Playwright
+
+Education
+Bachelor of Arts in Digital Media, Example University | 2023

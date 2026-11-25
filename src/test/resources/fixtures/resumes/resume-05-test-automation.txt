@@ -1,0 +1,21 @@
+Candidate 05
+Email: candidate05@example.test
+
+Summary
+Quality engineer focused on automated testing for web services.
+
+Experience
+Demo Quality Works - Test Automation Engineer | 2022-Present
+- Created Java test suites with Selenium and JUnit.
+- Validated REST APIs and database results with REST Assured and SQL.
+- Integrated regression tests into CI/CD pipelines.
+
+Projects
+API Regression Suite
+- Added reusable test data and checks for error responses and edge cases.
+
+Skills
+Java, Selenium, JUnit, REST Assured, SQL, CI/CD, Git, test automation
+
+Education
+Bachelor of Science in Software Engineering, Example University | 2022
