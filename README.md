@@ -119,7 +119,8 @@ Use the access token as `Authorization: Bearer <access-token>`. Other API routes
 
 - `POST /v1/resumes` accepts `multipart/form-data` with a `file` field and a PDF or DOCX resume, up to 5 MB.
 - Uploads require either a valid access token or a valid `guest_session` cookie. The response includes the resume and version IDs.
-- Files are stored locally under `./uploads` by default. Set `UPLOAD_DIRECTORY` to change the storage directory; production deployments should mount a persistent, access-controlled directory.
+- Files are stored in an S3-compatible bucket. Configure `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY`, and `S3_SECRET_KEY` in `.env`; AWS deployments can use the default AWS credential chain instead.
+- For MinIO, set `S3_ENDPOINT` to the MinIO URL and create the configured bucket before uploading.
 - The server checks the filename, media type, file signature, and whether the document can be parsed before storing it.
 
 ## Job descriptions
