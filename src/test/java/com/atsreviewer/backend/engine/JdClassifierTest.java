@@ -3,6 +3,9 @@ package com.atsreviewer.backend.engine;
 import com.atsreviewer.backend.engine.model.JdSkill;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -10,6 +13,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JdClassifierTest {
+    @Test
+    void classifiesRequiredAndPreferredSkillsFromJobDescriptionFixture() throws IOException {
+        List<JdSkill> skills = classifier().classify(
+                readFixture("/fixtures/job-descriptions/jd-01-java-backend.txt"));
+
+        assertThat(skills).containsExactly(
+                new JdSkill(1, "Java", true),
+                new JdSkill(3, "AWS", false),
+                new JdSkill(4, "Docker", false));
+    }
+
     @Test
     void classifiesSkillsFromRequiredAndPreferredBullets() {
         JdClassifier classifier = classifier();
@@ -98,5 +112,14 @@ class JdClassifierTest {
                         2, "Python",
                         3, "AWS",
                         4, "Docker"));
+    }
+
+    private String readFixture(String resourcePath) throws IOException {
+        try (InputStream input = JdClassifierTest.class.getResourceAsStream(resourcePath)) {
+            if (input == null) {
+                throw new IOException("Missing test fixture: " + resourcePath);
+            }
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 }
