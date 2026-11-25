@@ -42,7 +42,7 @@ class ScorerTest {
         assertThat(result.score()).isEqualTo(68.57);
         assertThat(result.engineVersion()).isEqualTo("1.0.0");
         assertThat(result.items()).extracting(ScoreItem::status)
-                .containsExactly(Status.CLAIMED, Status.USED, Status.MISSING);
+                .containsExactly(Status.USED, Status.CLAIMED, Status.MISSING);
     }
 
     @Test

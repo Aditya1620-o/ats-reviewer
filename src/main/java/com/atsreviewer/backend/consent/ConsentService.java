@@ -7,23 +7,30 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.UUID;
 
+import software.amazon.awssdk.core.exception.SdkException;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.atsreviewer.backend.resume.ResumeFileDeletionService;
+
 @Service
 public class ConsentService {
 	private final JdbcClient jdbcClient;
+	private final ResumeFileDeletionService resumeFileDeletionService;
 	private final String noticeVersion;
 	private final String subjectPepper;
 
 	public ConsentService(
 			JdbcClient jdbcClient,
+			ResumeFileDeletionService resumeFileDeletionService,
 			@Value("${app.consent.notice-version}") String noticeVersion,
 			@Value("${app.consent.subject-pepper:}") String subjectPepper) {
 		this.jdbcClient = jdbcClient;
+		this.resumeFileDeletionService = resumeFileDeletionService;
 		this.noticeVersion = noticeVersion;
 		this.subjectPepper = subjectPepper;
 	}
@@ -95,6 +102,7 @@ public class ConsentService {
 				.param("now", Timestamp.from(now))
 				.param("guestSessionId", guestSessionId)
 				.update();
+			deleteGuestResumeFiles(guestSessionId);
 			jdbcClient.sql("DELETE FROM job_descriptions WHERE guest_session_id = :id")
 				.param("id", guestSessionId)
 				.update();
@@ -115,6 +123,7 @@ public class ConsentService {
 			.param("now", Timestamp.from(now))
 			.param("userId", userId)
 			.update();
+		deleteUserResumeFiles(userId);
 		jdbcClient.sql("DELETE FROM job_descriptions WHERE user_id = :id")
 			.param("id", userId)
 			.update();
@@ -125,6 +134,24 @@ public class ConsentService {
 
 	public String noticeVersion() {
 		return noticeVersion;
+	}
+
+	private void deleteGuestResumeFiles(UUID guestSessionId) {
+		try {
+			resumeFileDeletionService.deleteForGuest(guestSessionId);
+		} catch (SdkException exception) {
+			throw new ConsentException(HttpStatus.SERVICE_UNAVAILABLE, "FILE_STORAGE_UNAVAILABLE",
+					"Resume files could not be deleted because storage is unavailable.", exception);
+		}
+	}
+
+	private void deleteUserResumeFiles(UUID userId) {
+		try {
+			resumeFileDeletionService.deleteForUser(userId);
+		} catch (SdkException exception) {
+			throw new ConsentException(HttpStatus.SERVICE_UNAVAILABLE, "FILE_STORAGE_UNAVAILABLE",
+					"Resume files could not be deleted because storage is unavailable.", exception);
+		}
 	}
 
 	private String hashSubject(String subject) {
