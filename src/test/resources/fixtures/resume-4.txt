@@ -1,0 +1,17 @@
+TEST CANDIDATE FOUR
+
+SUMMARY
+Cloud engineer familiar with AWS, Docker, and Python.
+
+SKILLS
+AWS, Docker
+
+EXPERIENCE
+Cloud Engineer at Sample Cloud Services
+Built Docker containers and deployed workloads on AWS.
+
+PROJECTS
+Automated infrastructure with Python scripts.
+
+EDUCATION
+Diploma in Computer Applications

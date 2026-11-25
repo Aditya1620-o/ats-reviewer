@@ -1,0 +1,6 @@
+Full Stack Software Developer
+
+Java is mandatory.
+Python experience is preferred.
+Knowledge of Docker is a bonus.
+AWS experience is good to have.
