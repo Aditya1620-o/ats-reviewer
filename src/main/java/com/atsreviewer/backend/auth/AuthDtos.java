@@ -21,6 +21,10 @@ public final class AuthDtos {
 	}
 
 	@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
+	public record GoogleLoginRequest(@NotBlank @Size(max = 8192) String idToken) {
+	}
+
+	@JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 	public record RefreshRequest(@NotBlank @Size(max = 128) String refreshToken) {
 	}
 

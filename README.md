@@ -101,7 +101,11 @@ Authentication endpoints:
 - `POST /v1/auth/refresh` accepts `{ "refresh_token": "..." }`, revokes that refresh token, and returns a rotated pair.
 - `POST /v1/auth/logout` accepts `{ "refresh_token": "..." }` and revokes it; the response is `204 No Content`.
 
-Use the access token as `Authorization: Bearer <access-token>`. Other API routes require a valid access token. Refresh tokens are stored as SHA-256 hashes and are single-use; passwords are stored as BCrypt hashes. Google OAuth is not enabled yet.
+Use the access token as `Authorization: Bearer <access-token>`. Other API routes require a valid access token. Refresh tokens are stored as SHA-256 hashes and are single-use; passwords are stored as BCrypt hashes.
+
+- `POST /v1/auth/google` accepts `{ "id_token": "..." }` from the frontend's Google Identity flow and returns the same access and refresh token pair as password login.
+- Set `GOOGLE_CLIENT_ID` to the OAuth client ID used by the frontend. The backend verifies Google's signature, issuer, expiration, audience, and verified email before sign-in.
+- A verified Google email can link to an existing account with the same email. A Google identity already linked to a different email cannot be linked again.
 
 ## Guest sessions
 

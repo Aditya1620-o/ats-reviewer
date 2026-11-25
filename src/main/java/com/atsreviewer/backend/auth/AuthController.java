@@ -13,6 +13,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import com.atsreviewer.backend.ratelimit.RateLimiter;
 
 import com.atsreviewer.backend.auth.AuthDtos.LoginRequest;
+import com.atsreviewer.backend.auth.AuthDtos.GoogleLoginRequest;
 import com.atsreviewer.backend.auth.AuthDtos.RefreshRequest;
 import com.atsreviewer.backend.auth.AuthDtos.SignupRequest;
 import com.atsreviewer.backend.auth.AuthDtos.TokenResponse;
@@ -25,10 +26,15 @@ import jakarta.validation.Valid;
 public class AuthController {
 	private final AuthService authService;
 	private final RateLimiter rateLimiter;
+	private final GoogleIdTokenVerifier googleIdTokenVerifier;
 
-	public AuthController(AuthService authService, RateLimiter rateLimiter) {
+	public AuthController(
+			AuthService authService,
+			RateLimiter rateLimiter,
+			GoogleIdTokenVerifier googleIdTokenVerifier) {
 		this.authService = authService;
 		this.rateLimiter = rateLimiter;
+		this.googleIdTokenVerifier = googleIdTokenVerifier;
 	}
 
 	@PostMapping("/signup")
@@ -42,6 +48,15 @@ public class AuthController {
 			HttpServletRequest servletRequest) {
 		rateLimiter.checkLogin(servletRequest.getRemoteAddr(), request.email());
 		return authService.login(request);
+	}
+
+	@PostMapping("/google")
+	public TokenResponse googleLogin(
+			@Valid @RequestBody GoogleLoginRequest request,
+			HttpServletRequest servletRequest) {
+		GoogleIdTokenVerifier.GoogleIdentity identity = googleIdTokenVerifier.verify(request.idToken());
+		rateLimiter.checkLogin(servletRequest.getRemoteAddr(), identity.email());
+		return authService.googleSignIn(identity);
 	}
 
 	@PostMapping("/refresh")
