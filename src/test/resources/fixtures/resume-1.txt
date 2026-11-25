@@ -1,0 +1,17 @@
+TEST CANDIDATE ONE
+
+SUMMARY
+Java developer with experience in Spring Boot and Docker.
+
+SKILLS
+Java, Spring Boot, Docker
+
+EXPERIENCE
+Software Developer at Fictional Labs
+Built Java REST services and packaged applications using Docker.
+
+PROJECTS
+Created a Spring Boot inventory system.
+
+EDUCATION
+Bachelor of Technology in Computer Science
