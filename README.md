@@ -129,7 +129,7 @@ Use the access token as `Authorization: Bearer <access-token>`. Other API routes
 - `GET /v1/job-descriptions/{id}` returns one description owned by the current user or guest session.
 - `DELETE /v1/job-descriptions/{id}` deletes one description owned by the current user or guest session and returns `204 No Content`.
 - These endpoints require either a valid access token or a valid `guest_session` cookie. A request cannot read or delete another owner's description.
-- The `skills` and `skill_aliases` tables must contain the skill catalogue; creation returns `503` if the catalogue is empty.
+- Flyway seeds an initial catalogue of Java, Python, AWS, and Docker, with common aliases; add future catalogue changes through new migrations. Creation returns `503` if the catalogue is empty.
 
 ## Analyses
 

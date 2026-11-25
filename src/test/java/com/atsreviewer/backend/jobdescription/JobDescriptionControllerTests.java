@@ -73,6 +73,21 @@ class JobDescriptionControllerTests {
 	}
 
 	@Test
+	void classifiesSkillAliasesAsRequiredAndPreferred() throws Exception {
+		String rawText = "Amazon Web Services is required. Python 3 is preferred. "
+				+ " filler".repeat(30);
+
+		mockMvc.perform(post("/v1/job-descriptions")
+				.cookie(new jakarta.servlet.http.Cookie(
+						GuestSessionService.COOKIE_NAME, createGuestCookie()))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(request("Cloud Engineer", rawText)))
+			.andExpect(status().isCreated())
+			.andExpect(jsonPath("$.required_skill_ids[0]").value(3))
+			.andExpect(jsonPath("$.preferred_skill_ids[0]").value(2));
+	}
+
+	@Test
 	void authenticatedUsersCannotReadOrDeleteAnotherUsersDescription() throws Exception {
 		String ownerToken = createAccountToken();
 		String otherToken = createAccountToken();
