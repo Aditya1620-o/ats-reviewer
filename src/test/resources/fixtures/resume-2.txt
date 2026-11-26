@@ -1,0 +1,17 @@
+TEST CANDIDATE TWO
+
+SUMMARY
+Backend developer with Python and AWS experience.
+
+SKILLS
+Python, AWS
+
+EXPERIENCE
+Python Developer at Example Systems
+Deployed applications on AWS.
+
+PROJECTS
+Built a Python data processing service.
+
+EDUCATION
+Bachelor of Science in Information Technology

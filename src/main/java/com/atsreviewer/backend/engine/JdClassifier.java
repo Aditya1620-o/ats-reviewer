@@ -16,6 +16,12 @@ public final class JdClassifier {
     private static final Pattern PREFERRED_CUE = Pattern.compile(
             "\\bgood\\s+to\\s+have\\b|\\bpreferred\\b|\\bplus\\b|\\bbonus\\b",
             Pattern.CASE_INSENSITIVE);
+    private static final Pattern REQUIRED_SECTION = Pattern.compile(
+            "^\\s*(?:required|requirements)(?:\\s+(?:skills?|qualifications?))?\\s*:?\\s*$",
+            Pattern.CASE_INSENSITIVE);
+    private static final Pattern PREFERRED_SECTION = Pattern.compile(
+            "^\\s*(?:preferred|nice\\s+to\\s+have)(?:\\s+(?:skills?|qualifications?))?\\s*:?\\s*$",
+            Pattern.CASE_INSENSITIVE);
 
     private final SkillMatcher matcher;
     private final Map<Integer, String> skillNames;
@@ -37,9 +43,21 @@ public final class JdClassifier {
         }
 
         Map<Integer, Boolean> requiredBySkillId = new TreeMap<>();
+        Boolean sectionRequired = null;
         for (String sentence : SENTENCE_BOUNDARY.split(jobDescription)) {
-            boolean required = REQUIRED_CUE.matcher(sentence).find()
-                    || !PREFERRED_CUE.matcher(sentence).find();
+            if (REQUIRED_SECTION.matcher(sentence).matches()) {
+                sectionRequired = true;
+                continue;
+            }
+            if (PREFERRED_SECTION.matcher(sentence).matches()) {
+                sectionRequired = false;
+                continue;
+            }
+
+            boolean explicitRequired = REQUIRED_CUE.matcher(sentence).find();
+            boolean explicitPreferred = PREFERRED_CUE.matcher(sentence).find();
+            boolean required = explicitRequired
+                    || (!explicitPreferred && (sectionRequired == null || sectionRequired));
             for (int skillId : matcher.findSkillIds(sentence)) {
                 requiredBySkillId.merge(skillId, required, Boolean::logicalOr);
             }
