@@ -7,13 +7,12 @@ import java.time.Instant;
 import java.util.HexFormat;
 import java.util.UUID;
 
-import software.amazon.awssdk.core.exception.SdkException;
-
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
 
 import com.atsreviewer.backend.resume.ResumeFileDeletionService;
 
@@ -66,24 +65,37 @@ public class ConsentService {
 	}
 
 	public boolean hasCurrentConsent(UUID userId, UUID guestSessionId) {
-		if (userId == null && guestSessionId == null) {
-			return false;
+		if (userId != null) {
+			Integer count = jdbcClient.sql("""
+					SELECT COUNT(*)
+					FROM consent_records
+					WHERE user_id = :userId
+					  AND notice_version = :noticeVersion
+					  AND withdrawn_at IS NULL
+					  AND age_confirmed_18 = TRUE
+					""")
+				.param("userId", userId)
+				.param("noticeVersion", noticeVersion)
+				.query((resultSet, rowNumber) -> resultSet.getInt(1))
+				.single();
+			return count != null && count > 0;
 		}
-		Integer count = jdbcClient.sql("""
-				SELECT COUNT(*)
-				FROM consent_records
-				WHERE (:userId IS NULL OR user_id = :userId)
-				  AND (:guestSessionId IS NULL OR guest_session_id = :guestSessionId)
-				  AND notice_version = :noticeVersion
-				  AND withdrawn_at IS NULL
-				  AND age_confirmed_18 = TRUE
-				""")
-			.param("userId", userId)
-			.param("guestSessionId", guestSessionId)
-			.param("noticeVersion", noticeVersion)
-			.query((resultSet, rowNumber) -> resultSet.getInt(1))
-			.single();
-		return count != null && count > 0;
+		if (guestSessionId != null) {
+			Integer count = jdbcClient.sql("""
+					SELECT COUNT(*)
+					FROM consent_records
+					WHERE guest_session_id = :guestSessionId
+					  AND notice_version = :noticeVersion
+					  AND withdrawn_at IS NULL
+					  AND age_confirmed_18 = TRUE
+					""")
+				.param("guestSessionId", guestSessionId)
+				.param("noticeVersion", noticeVersion)
+				.query((resultSet, rowNumber) -> resultSet.getInt(1))
+				.single();
+			return count != null && count > 0;
+		}
+		return false;
 	}
 
 	@Transactional
@@ -139,7 +151,7 @@ public class ConsentService {
 	private void deleteGuestResumeFiles(UUID guestSessionId) {
 		try {
 			resumeFileDeletionService.deleteForGuest(guestSessionId);
-		} catch (SdkException exception) {
+		} catch (RestClientException exception) {
 			throw new ConsentException(HttpStatus.SERVICE_UNAVAILABLE, "FILE_STORAGE_UNAVAILABLE",
 					"Resume files could not be deleted because storage is unavailable.", exception);
 		}
@@ -148,7 +160,7 @@ public class ConsentService {
 	private void deleteUserResumeFiles(UUID userId) {
 		try {
 			resumeFileDeletionService.deleteForUser(userId);
-		} catch (SdkException exception) {
+		} catch (RestClientException exception) {
 			throw new ConsentException(HttpStatus.SERVICE_UNAVAILABLE, "FILE_STORAGE_UNAVAILABLE",
 					"Resume files could not be deleted because storage is unavailable.", exception);
 		}

@@ -44,8 +44,21 @@ public class AnalysisService {
 
 		Optional<UUID> existingId = findExistingId(request);
 		if (existingId.isPresent()) {
-			return loadOwnedAnalysis(userId, guestSessionId, existingId.get())
+			Response existing = loadOwnedAnalysis(userId, guestSessionId, existingId.get())
 					.orElseThrow(() -> analysisNotFound());
+			if ("failed".equals(existing.status())) {
+				jdbcClient.sql("""
+						UPDATE analyses
+						SET status = 'queued', attempts = 0, error_code = NULL,
+						    started_at = NULL, finished_at = NULL
+						WHERE id = :id AND status = 'failed'
+						""")
+					.param("id", existing.id())
+					.update();
+				return loadOwnedAnalysis(userId, guestSessionId, existing.id())
+						.orElseThrow(() -> analysisNotFound());
+			}
+			return existing;
 		}
 
 		UUID analysisId = UUID.randomUUID();

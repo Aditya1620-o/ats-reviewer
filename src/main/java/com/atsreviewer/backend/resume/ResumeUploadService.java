@@ -6,8 +6,13 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.apache.poi.ooxml.POIXMLException;
@@ -18,11 +23,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.atsreviewer.backend.consent.ConsentService;
 import com.atsreviewer.backend.engine.extract.ResumeParser;
-
-import software.amazon.awssdk.core.exception.SdkException;
+import com.atsreviewer.backend.resume.ResumeUploadDtos.ResumeSummary;
+import com.atsreviewer.backend.resume.ResumeUploadDtos.ResumeUploadResponse;
+import com.atsreviewer.backend.resume.ResumeUploadDtos.ResumeVersionSummary;
 
 @Service
 public class ResumeUploadService {
@@ -31,25 +39,38 @@ public class ResumeUploadService {
 
 	private final JdbcClient jdbcClient;
 	private final ResumeParser resumeParser;
-	private final S3ResumeFileStorage fileStorage;
+	private final ResumeFileStorage fileStorage;
+	private final ResumeFileDeletionService resumeFileDeletionService;
+	private final ConsentService consentService;
 
 	public ResumeUploadService(
 			JdbcClient jdbcClient,
 			ResumeParser resumeParser,
-			S3ResumeFileStorage fileStorage) {
+			ResumeFileStorage fileStorage,
+			ResumeFileDeletionService resumeFileDeletionService,
+			ConsentService consentService) {
 		this.jdbcClient = jdbcClient;
 		this.resumeParser = resumeParser;
 		this.fileStorage = fileStorage;
+		this.resumeFileDeletionService = resumeFileDeletionService;
+		this.consentService = consentService;
 	}
 
 	@Transactional
-	public ResumeUploadDtos.ResumeUploadResponse upload(
+	public ResumeUploadResponse upload(UUID userId, UUID guestSessionId, MultipartFile file) {
+		return upload(userId, guestSessionId, null, file);
+	}
+
+	@Transactional
+	public ResumeUploadResponse upload(
 			UUID userId,
 			UUID guestSessionId,
+			UUID targetResumeId,
 			MultipartFile file) {
-		if ((userId == null) == (guestSessionId == null)) {
-			throw new ResumeUploadException(HttpStatus.UNAUTHORIZED, "OWNER_REQUIRED",
-					"Sign in or provide a valid guest session to upload a resume.");
+		validateOwner(userId, guestSessionId);
+		if (!consentService.hasCurrentConsent(userId, guestSessionId)) {
+			throw new ResumeUploadException(HttpStatus.FORBIDDEN, "CONSENT_REQUIRED",
+					"Accept the privacy notice and confirm you are at least 18 years old before uploading.");
 		}
 		if (file == null || file.isEmpty()) {
 			throw new ResumeUploadException(HttpStatus.BAD_REQUEST, "EMPTY_FILE",
@@ -98,35 +119,168 @@ public class ResumeUploadService {
 					"The file is not a valid, readable PDF or DOCX document.");
 		}
 
-		UUID resumeId = UUID.randomUUID();
+		String fileHash = sha256(bytes);
+		UUID resumeId;
+		int versionNo;
+		boolean createNewResume = targetResumeId == null;
+		if (createNewResume) {
+			resumeId = UUID.randomUUID();
+			versionNo = 1;
+		} else {
+			resumeId = lockOwnedResume(targetResumeId, userId, guestSessionId)
+					.orElseThrow(this::resumeNotFound);
+			Optional<Integer> duplicateVersion = findVersionByHash(resumeId, fileHash);
+			if (duplicateVersion.isPresent()) {
+				throw new ResumeUploadException(HttpStatus.CONFLICT, "DUPLICATE_VERSION",
+						"This file matches version " + duplicateVersion.get() + ".");
+			}
+			versionNo = nextVersionNumber(resumeId);
+		}
+
 		UUID versionId = UUID.randomUUID();
 		Instant createdAt = Instant.now();
 		String extension = isPdf ? ".pdf" : ".docx";
-		String storageKey = resumeId + "/" + versionId + extension;
-		String fileHash = sha256(bytes);
+		String objectName = resumeId + "/" + versionId + extension;
+		String fileId;
 		try {
-			fileStorage.store(storageKey, bytes, contentType, fileHash);
-		} catch (SdkException exception) {
+			fileId = fileStorage.store(objectName, bytes, contentType);
+		} catch (RestClientException exception) {
 			throw new ResumeUploadException(HttpStatus.SERVICE_UNAVAILABLE, "FILE_STORAGE_UNAVAILABLE",
 					"The resume storage service is unavailable.", exception);
 		}
 
 		try {
-			insertResume(resumeId, userId, guestSessionId, filename, createdAt);
-			insertVersion(versionId, resumeId, storageKey, fileHash, contentType, bytes.length);
+			if (createNewResume) {
+				insertResume(resumeId, userId, guestSessionId, filename, createdAt);
+			}
+			insertVersion(versionId, resumeId, versionNo, fileId, fileHash, contentType, bytes.length, createdAt);
 		} catch (DataAccessException exception) {
 			try {
-				fileStorage.delete(storageKey);
-			} catch (SdkException cleanupException) {
-				logger.error("Could not remove S3 object {} after its database insert failed", storageKey,
+				fileStorage.delete(fileId);
+			} catch (RestClientException cleanupException) {
+				logger.error("Could not remove ImageKit file {} after its database insert failed", fileId,
 						cleanupException);
 				exception.addSuppressed(cleanupException);
 			}
 			throw exception;
 		}
 
-		return new ResumeUploadDtos.ResumeUploadResponse(
-				resumeId, versionId, filename, contentType, bytes.length, createdAt);
+		return new ResumeUploadResponse(
+				resumeId, versionId, versionNo, filename, contentType, bytes.length, createdAt);
+	}
+
+	public List<ResumeSummary> findAll(UUID userId, UUID guestSessionId) {
+		validateOwner(userId, guestSessionId);
+		String sql = userId != null
+				? """
+						SELECT r.id AS resume_id, r.title, r.created_at AS resume_created_at,
+						       rv.id AS version_id, rv.version_no, rv.mime, rv.size_bytes,
+						       rv.extracted_text, rv.sections, rv.parse_warnings,
+						       rv.created_at AS version_created_at
+						FROM resumes r
+						LEFT JOIN resume_versions rv ON rv.resume_id = r.id
+						WHERE r.user_id = :ownerId
+						ORDER BY r.created_at DESC, rv.version_no DESC
+						"""
+				: """
+						SELECT r.id AS resume_id, r.title, r.created_at AS resume_created_at,
+						       rv.id AS version_id, rv.version_no, rv.mime, rv.size_bytes,
+						       rv.extracted_text, rv.sections, rv.parse_warnings,
+						       rv.created_at AS version_created_at
+						FROM resumes r
+						LEFT JOIN resume_versions rv ON rv.resume_id = r.id
+						WHERE r.guest_session_id = :ownerId
+						ORDER BY r.created_at DESC, rv.version_no DESC
+						""";
+		return collectSummaries(jdbcClient.sql(sql)
+				.param("ownerId", userId != null ? userId : guestSessionId)
+				.query(this::mapJoinedRow)
+				.list());
+	}
+
+	public ResumeSummary findById(UUID resumeId, UUID userId, UUID guestSessionId) {
+		validateOwner(userId, guestSessionId);
+		String sql = userId != null
+				? """
+						SELECT r.id AS resume_id, r.title, r.created_at AS resume_created_at,
+						       rv.id AS version_id, rv.version_no, rv.mime, rv.size_bytes,
+						       rv.extracted_text, rv.sections, rv.parse_warnings,
+						       rv.created_at AS version_created_at
+						FROM resumes r
+						LEFT JOIN resume_versions rv ON rv.resume_id = r.id
+						WHERE r.id = :resumeId AND r.user_id = :ownerId
+						ORDER BY rv.version_no DESC
+						"""
+				: """
+						SELECT r.id AS resume_id, r.title, r.created_at AS resume_created_at,
+						       rv.id AS version_id, rv.version_no, rv.mime, rv.size_bytes,
+						       rv.extracted_text, rv.sections, rv.parse_warnings,
+						       rv.created_at AS version_created_at
+						FROM resumes r
+						LEFT JOIN resume_versions rv ON rv.resume_id = r.id
+						WHERE r.id = :resumeId AND r.guest_session_id = :ownerId
+						ORDER BY rv.version_no DESC
+						""";
+		List<ResumeSummary> results = collectSummaries(jdbcClient.sql(sql)
+				.param("resumeId", resumeId)
+				.param("ownerId", userId != null ? userId : guestSessionId)
+				.query(this::mapJoinedRow)
+				.list());
+		if (results.isEmpty()) {
+			throw resumeNotFound();
+		}
+		return results.getFirst();
+	}
+
+	@Transactional
+	public void delete(UUID resumeId, UUID userId, UUID guestSessionId) {
+		validateOwner(userId, guestSessionId);
+		UUID ownedId = lockOwnedResume(resumeId, userId, guestSessionId)
+				.orElseThrow(this::resumeNotFound);
+		try {
+			resumeFileDeletionService.deleteForResume(ownedId);
+		} catch (RestClientException exception) {
+			throw new ResumeUploadException(HttpStatus.SERVICE_UNAVAILABLE, "FILE_STORAGE_UNAVAILABLE",
+					"Resume files could not be deleted because storage is unavailable.", exception);
+		}
+		jdbcClient.sql("DELETE FROM resumes WHERE id = :id")
+				.param("id", ownedId)
+				.update();
+	}
+
+	private Optional<UUID> lockOwnedResume(UUID resumeId, UUID userId, UUID guestSessionId) {
+		String sql = userId != null
+				? "SELECT id FROM resumes WHERE id = :id AND user_id = :ownerId FOR UPDATE"
+				: "SELECT id FROM resumes WHERE id = :id AND guest_session_id = :ownerId FOR UPDATE";
+		return jdbcClient.sql(sql)
+				.param("id", resumeId)
+				.param("ownerId", userId != null ? userId : guestSessionId)
+				.query((resultSet, rowNumber) -> resultSet.getObject("id", UUID.class))
+				.optional();
+	}
+
+	private Optional<Integer> findVersionByHash(UUID resumeId, String sha256) {
+		return jdbcClient.sql("""
+				SELECT version_no
+				FROM resume_versions
+				WHERE resume_id = :resumeId AND sha256 = :sha256
+				""")
+				.param("resumeId", resumeId)
+				.param("sha256", sha256)
+				.query((resultSet, rowNumber) -> resultSet.getInt("version_no"))
+				.optional();
+	}
+
+	private int nextVersionNumber(UUID resumeId) {
+		Integer next = jdbcClient.sql("""
+				SELECT COALESCE(MAX(version_no), 0) + 1
+				FROM resume_versions
+				WHERE resume_id = :resumeId
+				""")
+				.param("resumeId", resumeId)
+				.query((resultSet, rowNumber) -> resultSet.getInt(1))
+				.single();
+		return next == null ? 1 : next;
 	}
 
 	private void insertResume(UUID resumeId, UUID userId, UUID guestSessionId, String filename, Instant createdAt) {
@@ -157,22 +311,68 @@ public class ResumeUploadService {
 	private void insertVersion(
 			UUID versionId,
 			UUID resumeId,
+			int versionNo,
 			String storageFileId,
 			String sha256,
 			String contentType,
-			int sizeBytes) {
+			int sizeBytes,
+			Instant createdAt) {
 		jdbcClient.sql("""
 				INSERT INTO resume_versions
-					(id, resume_id, version_no, storage_file_id, sha256, mime, size_bytes)
-				VALUES (:id, :resumeId, 1, :storageFileId, :sha256, :mime, :sizeBytes)
+					(id, resume_id, version_no, storage_file_id, sha256, mime, size_bytes, created_at)
+				VALUES (:id, :resumeId, :versionNo, :storageFileId, :sha256, :mime, :sizeBytes, :createdAt)
 				""")
 			.param("id", versionId)
 			.param("resumeId", resumeId)
+			.param("versionNo", versionNo)
 			.param("storageFileId", storageFileId)
 			.param("sha256", sha256)
 			.param("mime", contentType)
 			.param("sizeBytes", sizeBytes)
+			.param("createdAt", Timestamp.from(createdAt))
 			.update();
+	}
+
+	private JoinedResumeRow mapJoinedRow(java.sql.ResultSet rs, int rowNum) throws java.sql.SQLException {
+		UUID versionId = rs.getObject("version_id", UUID.class);
+		ResumeVersionSummary version = versionId == null
+				? null
+				: new ResumeVersionSummary(
+						versionId,
+						rs.getInt("version_no"),
+						rs.getString("mime"),
+						rs.getInt("size_bytes"),
+						rs.getString("extracted_text"),
+						rs.getString("sections"),
+						rs.getString("parse_warnings"),
+						rs.getTimestamp("version_created_at").toInstant());
+		return new JoinedResumeRow(
+				rs.getObject("resume_id", UUID.class),
+				rs.getString("title"),
+				rs.getTimestamp("resume_created_at").toInstant(),
+				version);
+	}
+
+	private List<ResumeSummary> collectSummaries(List<JoinedResumeRow> rows) {
+		Map<UUID, ResumeBuilder> grouped = new LinkedHashMap<>();
+		for (JoinedResumeRow row : rows) {
+			ResumeBuilder builder = grouped.computeIfAbsent(
+					row.resumeId(),
+					ignored -> new ResumeBuilder(row.resumeId(), row.title(), row.createdAt()));
+			if (row.version() != null) {
+				builder.versions.add(row.version());
+			}
+		}
+		return grouped.values().stream()
+				.map(b -> new ResumeSummary(b.id, b.title, b.createdAt, b.versions))
+				.toList();
+	}
+
+	private void validateOwner(UUID userId, UUID guestSessionId) {
+		if ((userId == null) == (guestSessionId == null)) {
+			throw new ResumeUploadException(HttpStatus.UNAUTHORIZED, "OWNER_REQUIRED",
+					"Sign in or provide a valid guest session to access resumes.");
+		}
 	}
 
 	private String sha256(byte[] bytes) {
@@ -214,5 +414,30 @@ public class ResumeUploadService {
 	private ResumeUploadException unsupportedFile() {
 		return new ResumeUploadException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "UNSUPPORTED_FILE_TYPE",
 				"Only valid PDF and DOCX files are accepted.");
+	}
+
+	private ResumeUploadException resumeNotFound() {
+		return new ResumeUploadException(HttpStatus.NOT_FOUND, "RESUME_NOT_FOUND",
+				"The resume was not found.");
+	}
+
+	private record JoinedResumeRow(
+			UUID resumeId,
+			String title,
+			Instant createdAt,
+			ResumeVersionSummary version) {
+	}
+
+	private static final class ResumeBuilder {
+		private final UUID id;
+		private final String title;
+		private final Instant createdAt;
+		private final List<ResumeVersionSummary> versions = new ArrayList<>();
+
+		private ResumeBuilder(UUID id, String title, Instant createdAt) {
+			this.id = id;
+			this.title = title;
+			this.createdAt = createdAt;
+		}
 	}
 }

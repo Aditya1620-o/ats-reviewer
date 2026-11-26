@@ -6,7 +6,6 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -17,10 +16,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
-
 import com.atsreviewer.backend.AtsReviewerBackendApplication;
+import com.atsreviewer.backend.resume.ResumeFileStorage;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -47,7 +44,7 @@ class GuestSessionControllerTests {
 	private GuestSessionService guestSessionService;
 
 	@MockitoBean
-	private S3Client s3Client;
+	private ResumeFileStorage fileStorage;
 
 	@Test
 	void createsSignedHttpOnlyGuestCookie() throws Exception {
@@ -115,8 +112,6 @@ class GuestSessionControllerTests {
 
 		guestSessionService.purgeExpiredGuests();
 
-		ArgumentCaptor<DeleteObjectRequest> requestCaptor = ArgumentCaptor.forClass(DeleteObjectRequest.class);
-		verify(s3Client).deleteObject(requestCaptor.capture());
-		assertEquals(storageKey, requestCaptor.getValue().key());
+		verify(fileStorage).delete(storageKey);
 	}
 }

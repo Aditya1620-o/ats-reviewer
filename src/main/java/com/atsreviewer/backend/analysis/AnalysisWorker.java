@@ -18,7 +18,7 @@ import com.atsreviewer.backend.engine.model.JdSkill;
 import com.atsreviewer.backend.engine.model.ScoreItem;
 import com.atsreviewer.backend.engine.model.ScoreResult;
 import com.atsreviewer.backend.jobdescription.JobDescriptionSkillCatalog;
-import com.atsreviewer.backend.resume.S3ResumeFileStorage;
+import com.atsreviewer.backend.resume.ResumeFileStorage;
 
 @Component
 public class AnalysisWorker {
@@ -28,13 +28,13 @@ public class AnalysisWorker {
 	private final JdbcClient jdbcClient;
 	private final ResumeParser resumeParser;
 	private final JobDescriptionSkillCatalog skillCatalog;
-	private final S3ResumeFileStorage fileStorage;
+	private final ResumeFileStorage fileStorage;
 
 	public AnalysisWorker(
 			JdbcClient jdbcClient,
 			ResumeParser resumeParser,
 			JobDescriptionSkillCatalog skillCatalog,
-			S3ResumeFileStorage fileStorage) {
+			ResumeFileStorage fileStorage) {
 		this.jdbcClient = jdbcClient;
 		this.resumeParser = resumeParser;
 		this.skillCatalog = skillCatalog;

@@ -271,6 +271,30 @@ class AnalysisControllerTests {
 			.andExpect(jsonPath("$.expires_at").isNotEmpty());
 	}
 
+	@Test
+	void retriesAFailedAnalysisWhenRequestedAgain() throws Exception {
+		Fixture owner = createFixture();
+		UUID analysisId = createAnalysis(owner);
+		jdbcClient.sql("""
+				UPDATE analyses
+				SET status = 'failed', attempts = 3, error_code = 'PROCESSING_FAILED',
+				    started_at = :startedAt, finished_at = :finishedAt
+				WHERE id = :id
+				""")
+			.param("startedAt", Timestamp.from(Instant.now()))
+			.param("finishedAt", Timestamp.from(Instant.now()))
+			.param("id", analysisId)
+			.update();
+
+		mockMvc.perform(withOwner(post("/v1/analyses"), owner)
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(request(owner.resumeVersionId(), owner.jobDescriptionId())))
+			.andExpect(status().isAccepted())
+			.andExpect(jsonPath("$.id").value(analysisId.toString()))
+			.andExpect(jsonPath("$.status").value("queued"))
+			.andExpect(jsonPath("$.error_code").doesNotExist());
+	}
+
 	private UUID createAnalysis(Fixture owner) throws Exception {
 		MvcResult result = mockMvc.perform(withOwner(post("/v1/analyses"), owner)
 				.contentType(MediaType.APPLICATION_JSON)

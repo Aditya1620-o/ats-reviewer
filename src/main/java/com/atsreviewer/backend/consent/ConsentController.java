@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,6 +29,16 @@ public class ConsentController {
 	public ConsentController(ConsentService consentService, GuestSessionService guestSessionService) {
 		this.consentService = consentService;
 		this.guestSessionService = guestSessionService;
+	}
+
+	@GetMapping
+	public ConsentResponse status(
+			@CookieValue(name = GuestSessionService.COOKIE_NAME, required = false) String signedCookie,
+			Authentication authentication) {
+		UUID userId = authenticatedUserId(authentication);
+		UUID guestSessionId = resolveGuestSession(signedCookie);
+		boolean consented = consentService.hasCurrentConsent(userId, guestSessionId);
+		return new ConsentResponse(consented, consentService.noticeVersion());
 	}
 
 	@PostMapping
