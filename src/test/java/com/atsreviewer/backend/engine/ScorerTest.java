@@ -13,16 +13,37 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ScorerTest {
-    private final SkillMatcher fixtureMatcher = new SkillMatcher(Map.of(
-            "java", 1,
-            "python", 2,
-            "aws", 3,
-            "docker", 4
+    private final SkillMatcher fixtureMatcher = new SkillMatcher(Map.ofEntries(
+            Map.entry("java", 1),
+            Map.entry("python", 2),
+            Map.entry("aws", 3),
+            Map.entry("docker", 4),
+            Map.entry("spring boot", 5),
+            Map.entry("rest", 6),
+            Map.entry("postgresql", 7),
+            Map.entry("junit", 8),
+            Map.entry("kafka", 9),
+            Map.entry("ci/cd", 10),
+            Map.entry("sql", 11),
+            Map.entry("apache spark", 12),
+            Map.entry("apache airflow", 13),
+            Map.entry("snowflake", 14),
+            Map.entry("etl", 15),
+            Map.entry("data modeling", 16),
+            Map.entry("typescript", 17),
+            Map.entry("react", 18),
+            Map.entry("html", 19),
+            Map.entry("css", 20),
+            Map.entry("accessibility", 21),
+            Map.entry("node.js", 22),
+            Map.entry("playwright", 23),
+            Map.entry("performance profiling", 24)
     ));
 
     @Test
@@ -69,6 +90,89 @@ class ScorerTest {
 
         assertThat(result.score()).isZero();
         assertThat(result.items()).isEmpty();
+    }
+
+    @Test
+    void scoresJavaBackendFixturesUsingSkillsInTheirResumeSections() throws IOException {
+        ParsedResume resume = parsedFixture("resumes/resume-01-java-backend.txt");
+        String jobDescription = readFixture("job-descriptions/jd-01-java-backend.txt");
+        JdClassifier classifier = new JdClassifier(
+                fixtureMatcher,
+                Map.of(
+                        1, "Java",
+                        2, "Python",
+                        3, "AWS",
+                        4, "Docker",
+                        5, "Spring Boot",
+                        6, "REST",
+                        7, "PostgreSQL",
+                        8, "JUnit",
+                        9, "Kafka",
+                        10, "CI/CD"));
+        List<JdSkill> jdSkills = classifier.classify(jobDescription);
+
+        ScoreResult result = new Scorer(fixtureMatcher).score(resume, jdSkills);
+
+        assertThat(result.items()).extracting(ScoreItem::name)
+                .containsExactly("Java", "AWS", "Docker", "Spring Boot", "REST",
+                        "PostgreSQL", "JUnit", "Kafka", "CI/CD");
+        assertThat(result.items()).extracting(ScoreItem::status)
+                .containsExactly(
+                        Status.USED, Status.USED, Status.USED, Status.USED, Status.USED,
+                        Status.USED, Status.USED, Status.USED, Status.MISSING);
+        assertThat(result.items()).extracting(ScoreItem::foundIn)
+                .containsExactly(
+                        Section.EXPERIENCE, Section.EXPERIENCE, Section.EXPERIENCE,
+                        Section.EXPERIENCE, Section.EXPERIENCE, Section.EXPERIENCE,
+                        Section.EXPERIENCE, Section.PROJECTS, null);
+        assertThat(result.score()).isEqualTo(94.74);
+    }
+
+    @Test
+    void scoresDataEngineeringFixturesUsingSkillsInTheirResumeSections() throws IOException {
+        ParsedResume resume = parsedFixture("resumes/resume-02-data-engineering.txt");
+        String jobDescription = readFixture("job-descriptions/jd-02-data-engineering.txt");
+
+        ScoreResult result = new Scorer(fixtureMatcher).score(
+                resume, fixtureClassifier().classify(jobDescription));
+
+        assertThat(result.items()).extracting(ScoreItem::name)
+                .containsExactly("Python", "AWS", "SQL", "Apache Spark", "Apache Airflow",
+                        "Snowflake", "ETL", "Data modeling");
+        assertThat(result.items()).extracting(ScoreItem::status)
+                .containsExactly(
+                        Status.USED, Status.USED, Status.USED, Status.USED,
+                        Status.USED, Status.USED, Status.CLAIMED, Status.MISSING);
+        assertThat(result.items()).extracting(ScoreItem::foundIn)
+                .containsExactly(
+                        Section.EXPERIENCE, Section.EXPERIENCE, Section.EXPERIENCE,
+                        Section.EXPERIENCE, Section.EXPERIENCE, Section.PROJECTS,
+                        Section.SKILLS, null);
+        assertThat(result.score()).isEqualTo(91.25);
+    }
+
+    @Test
+    void scoresFrontendFixturesUsingSkillsInTheirResumeSections() throws IOException {
+        ParsedResume resume = parsedFixture("resumes/resume-03-frontend.txt");
+        String jobDescription = readFixture("job-descriptions/jd-03-frontend.txt");
+
+        ScoreResult result = new Scorer(fixtureMatcher).score(
+                resume, fixtureClassifier().classify(jobDescription));
+
+        assertThat(result.items()).extracting(ScoreItem::name)
+                .containsExactly("CI/CD", "TypeScript", "React", "HTML", "CSS",
+                        "Accessibility", "Node.js", "Playwright", "Performance profiling");
+        assertThat(result.items()).extracting(ScoreItem::status)
+                .containsExactly(
+                        Status.MISSING, Status.USED, Status.USED, Status.CLAIMED,
+                        Status.CLAIMED, Status.USED, Status.USED, Status.USED,
+                        Status.MISSING);
+        assertThat(result.items()).extracting(ScoreItem::foundIn)
+                .containsExactly(
+                        null, Section.EXPERIENCE, Section.EXPERIENCE, Section.SKILLS,
+                        Section.SKILLS, Section.EXPERIENCE, Section.PROJECTS,
+                        Section.EXPERIENCE, null);
+        assertThat(result.score()).isEqualTo(76.84);
     }
 
     @Test
@@ -160,8 +264,38 @@ class ScorerTest {
         }
     }
 
+    private JdClassifier fixtureClassifier() {
+        return new JdClassifier(
+                fixtureMatcher,
+                Map.ofEntries(
+                        Map.entry(1, "Java"),
+                        Map.entry(2, "Python"),
+                        Map.entry(3, "AWS"),
+                        Map.entry(4, "Docker"),
+                        Map.entry(5, "Spring Boot"),
+                        Map.entry(6, "REST"),
+                        Map.entry(7, "PostgreSQL"),
+                        Map.entry(8, "JUnit"),
+                        Map.entry(9, "Kafka"),
+                        Map.entry(10, "CI/CD"),
+                        Map.entry(11, "SQL"),
+                        Map.entry(12, "Apache Spark"),
+                        Map.entry(13, "Apache Airflow"),
+                        Map.entry(14, "Snowflake"),
+                        Map.entry(15, "ETL"),
+                        Map.entry(16, "Data modeling"),
+                        Map.entry(17, "TypeScript"),
+                        Map.entry(18, "React"),
+                        Map.entry(19, "HTML"),
+                        Map.entry(20, "CSS"),
+                        Map.entry(21, "Accessibility"),
+                        Map.entry(22, "Node.js"),
+                        Map.entry(23, "Playwright"),
+                        Map.entry(24, "Performance profiling")));
+    }
+
     private Section headingFor(String line) {
-        return switch (line.trim()) {
+        return switch (line.trim().toUpperCase(Locale.ROOT)) {
             case "EXPERIENCE" -> Section.EXPERIENCE;
             case "PROJECTS" -> Section.PROJECTS;
             case "SKILLS" -> Section.SKILLS;
